@@ -829,3 +829,14 @@ def sort_choices():
 @register.simple_tag(takes_context=True)
 def render_alert(context, alert):
     return alert.render(user=context["user"])
+
+
+@register.simple_tag
+def format_relative_unit_position(unit, current_unit):
+    d = unit.position - current_unit.position
+    if d > 0:
+        return "+" + str(d)
+    elif d < 0:
+        return str(d)
+    else:
+        return ""
