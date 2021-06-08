@@ -21,6 +21,7 @@
 
 import os
 import tempfile
+import stat
 from copy import deepcopy
 from typing import Any, Dict, List, Optional, Tuple, Type, Union
 
@@ -298,6 +299,8 @@ class TranslationFormat:
             os.makedirs(dirname)
         temp = tempfile.NamedTemporaryFile(prefix=basename, dir=dirname, delete=False)
         try:
+            if os.path.exists(filename):
+                os.chmod(temp.name, stat.S_IMODE(os.stat(filename).st_mode))
             callback(temp)
             temp.close()
             os.replace(temp.name, filename)
@@ -550,6 +553,8 @@ class BilingualUpdateMixin:
         )
         temp.close()
         try:
+            if os.path.exists(filename):
+                os.chmod(temp.name, stat.S_IMODE(os.stat(filename).st_mode))
             cls.do_bilingual_update(filename, temp.name, template, **kwargs)
             os.replace(temp.name, filename)
         finally:
