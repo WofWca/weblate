@@ -5,6 +5,10 @@
 <td class="number {{ class }}" data-value="{{ percent|stringformat:"f" }}" title="{% blocktrans %}{{ value }} of {{ all }}{% endblocktrans %}">
     {% if value == all %}
         <span class="green" title="{% trans "Completed translation" %}">{% icon "check.svg" %}</span>
+    {% elif translate_url %}
+        <a href="{{ translate_url }}?{{ query }}">
+            {{ percent|percent_format }}
+        </a>
     {% else %}
         {{ percent|percent_format }}
     {% endif %}
