@@ -690,6 +690,27 @@ class ProjectViewSet(
 
         return Response(serializer.data)
 
+    @action(
+        detail=True,
+        methods=["get"],
+        url_path="statistics/(?P<language_code>[^/.]+)",
+        serializer_class=StatisticsSerializer,
+    )
+    def statistics_for_language(self, request, language_code, **kwargs):
+        obj = self.get_object()
+
+        try:
+            language_object = Language.objects.get(code=language_code)
+        except Language.DoesNotExist as error:
+            raise Http404(str(error))
+
+        queryset = obj.stats.get_single_language_stats(language_object).translation_set
+        page = self.paginate_queryset(queryset)
+
+        serializer = StatisticsSerializer(page, many=True, context={"request": request})
+
+        return self.get_paginated_response(serializer.data)
+
     @action(detail=True, methods=["get"])
     def languages(self, request, **kwargs):
         obj = self.get_object()

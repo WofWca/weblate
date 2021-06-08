@@ -87,6 +87,8 @@ def export_stats(request, project, component):
             "approved_percent",
             "suggestions",
             "comments",
+            "component",
+            "project",
         ),
         StatisticsSerializer(translations, many=True).data,
     )

@@ -822,6 +822,9 @@ class StatisticsSerializer(ReadOnlySerializer):
             result["url"] = get_site_url(instance.get_absolute_url())
         if hasattr(instance, "get_translate_url"):
             result["translate_url"] = get_site_url(instance.get_translate_url())
+        if hasattr(instance, "component"):
+            result["component"] = instance.component.slug
+            result["project"] = instance.component.project.slug
         return result
 
 
