@@ -619,10 +619,10 @@ def get_translate_url(context, obj):
     """Get translate URL based on user preference."""
     if isinstance(obj, BaseStats) or not hasattr(obj, "get_translate_url"):
         return ""
-    if context["user"].profile.translate_mode == Profile.TRANSLATE_ZEN:
-        name = "zen"
-    else:
+    if context["user"].profile.translate_mode == Profile.TRANSLATE_FULL:
         name = "translate"
+    else:
+        name = "zen"
     return reverse(name, kwargs=obj.get_reverse_url_kwargs())
 
 

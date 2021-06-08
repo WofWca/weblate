@@ -336,7 +336,7 @@ class Profile(models.Model):
     translate_mode = models.IntegerField(
         verbose_name=_("Translation editor mode"),
         choices=((TRANSLATE_FULL, _("Full editor")), (TRANSLATE_ZEN, _("Zen mode"))),
-        default=TRANSLATE_FULL,
+        default=TRANSLATE_ZEN,
     )
     ZEN_VERTICAL = 0
     ZEN_HORIZONTAL = 1
@@ -346,7 +346,7 @@ class Profile(models.Model):
             (ZEN_VERTICAL, _("Top to bottom")),
             (ZEN_HORIZONTAL, _("Side by side")),
         ),
-        default=ZEN_VERTICAL,
+        default=ZEN_HORIZONTAL,
     )
     special_chars = models.CharField(
         default="",
