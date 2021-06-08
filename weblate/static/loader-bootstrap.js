@@ -1008,6 +1008,22 @@ $(function () {
     );
   });
 
+  $("a.unit-search-result").mouseover(function (event) {
+    if (!this.dataset.nestedContainerHref) {
+      this.dataset.nestedContainerHref = this.href;
+    }
+    var newHref = this.dataset.nestedContainerHref;
+    var element = event.target;
+    while (element !== this && element != null) {
+      if (element.dataset.nestedHref) {
+        newHref = element.dataset.nestedHref;
+        break;
+      }
+      element = element.parentElement;
+    }
+    this.href = newHref;
+  });
+
   /* Clickable rows */
   $("tr[data-href]").click(function () {
     window.location = $(this).data("href");

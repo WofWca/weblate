@@ -25,9 +25,9 @@
     {% if page_obj.object_list %}
         <div class="list-group">
             {% for unit in page_obj.object_list %}
-                <a href="{{ unit.get_absolute_url }}{% if query_string %}&amp;{{ query_string }}{% endif %}" class="list-group-item">
+                <a href="{{ unit.get_absolute_url }}{% if query_string %}&amp;{{ query_string }}{% endif %}" class="list-group-item unit-search-result">
                     <h4 class="list-group-item-heading">
-                        {% get_state_flags unit %}
+                        {% get_state_flags unit nested_links=True %}
                         {{ unit.translation }}
                     </h4>
                     <p class="list-group-item-text">

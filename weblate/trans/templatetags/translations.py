@@ -504,12 +504,13 @@ def get_state_badge(unit):
 
 
 @register.inclusion_tag("snippets/unit-state.html")
-def get_state_flags(unit, detail=False):
+def get_state_flags(unit, detail=False, nested_links=False):
     """Return state flags."""
     return {
         "state": " ".join(get_state_css(unit)),
         "unit": unit,
         "detail": detail,
+        "nested_links": nested_links,
     }
 
 

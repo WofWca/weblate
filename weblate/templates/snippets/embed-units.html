@@ -20,7 +20,7 @@
 <td><a href="{{ unit.get_absolute_url }}{% if sort_query %}&amp;sort_by={{ sort_query }}{% endif %}">{% format_translation unit.source unit.translation.component.source_language simple=True %}</a></td>
 {% endif %}
 <td><a href="{{ unit.get_absolute_url }}{% if sort_query %}&amp;sort_by={{ sort_query }}{% endif %}">{% format_translation unit.target unit.translation.language unit.translation.plural simple=True %}</a></td>
-<td>{% get_state_flags unit True %}</td>
+<td>{% get_state_flags unit detail=True %}</td>
 </tr>
 {% endfor %}
 </tbody>

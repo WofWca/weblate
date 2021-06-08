@@ -3,20 +3,20 @@
 
 {% with unit_url=unit.get_absolute_url %}
 <span class="state-icon {{ state }}">
-<span title="{% trans "Needs editing" context "String state" %}" class="state-need-edit">
-    <a href="{{ unit_url }}">{% icon "need-edit.svg" %}</a>
+<span title="{% trans "Needs editing" context "String state" %}" class="state-need-edit" data-nested-href="{{ unit_url }}">
+    {% if not nested_links %}<a href="{{ unit_url }}">{% endif %}{% icon "need-edit.svg" %}{% if not nested_links %}</a>{% endif %}
 </span>
-<span title="{% trans "Read only" context "String state" %}" class="state-readonly">
-    <a href="{{ unit_url }}">{% icon "read-only.svg" %}</a>
+<span title="{% trans "Read only" context "String state" %}" class="state-readonly" data-nested-href="{{ unit_url }}">
+    {% if not nested_links %}<a href="{{ unit_url }}">{% endif %}{% icon "read-only.svg" %}{% if not nested_links %}</a>{% endif %}
 </span>
-<span title="{% trans "Approved" context "String state" %}" class="green state-approved">
-    <a href="{{ unit_url }}">{% icon "approved.svg" %}</a>
+<span title="{% trans "Approved" context "String state" %}" class="green state-approved" data-nested-href="{{ unit_url }}">
+    {% if not nested_links %}<a href="{{ unit_url }}">{% endif %}{% icon "approved.svg" %}{% if not nested_links %}</a>{% endif %}
 </span>
-<span title="{% trans "Translated" context "String state" %}" class="green state-translated">
-    <a href="{{ unit_url }}">{% icon "translated.svg" %}</a>
+<span title="{% trans "Translated" context "String state" %}" class="green state-translated" data-nested-href="{{ unit_url }}">
+    {% if not nested_links %}<a href="{{ unit_url }}">{% endif %}{% icon "translated.svg" %}{% if not nested_links %}</a>{% endif %}
 </span>
-<span title="{% trans "Untranslated" context "String state" %}" class="state-empty">
-    <a href="{{ unit_url }}">{% icon "empty.svg" %}</a>
+<span title="{% trans "Untranslated" context "String state" %}" class="state-empty" data-nested-href="{{ unit_url }}">
+    {% if not nested_links %}<a href="{{ unit_url }}">{% endif %}{% icon "empty.svg" %}{% if not nested_links %}</a>{% endif %}
 </span>
 <span
   {% if detail %}
@@ -24,8 +24,8 @@
   {% else %}
     title="{% trans "Failed checks" context "String state" %}"
   {% endif %}
-    class="red state-check">
-    <a href="{{ unit_url }}">{% icon "alert.svg" %}</a>
+    class="red state-check" data-nested-href="{{ unit_url }}">
+    {% if not nested_links %}<a href="{{ unit_url }}">{% endif %}{% icon "alert.svg" %}{% if not nested_links %}</a>{% endif %}
 </span>
 <span
   {% if detail %}
@@ -33,14 +33,14 @@
   {% else %}
     title="{% trans "Failed checks" context "String state" %}"
   {% endif %}
-    class="gray state-dismissed-check">
-    <a href="{{ unit_url }}">{% icon "alert.svg" %}</a>
+    class="gray state-dismissed-check" data-nested-href="{{ unit_url }}">
+    {% if not nested_links %}<a href="{{ unit_url }}">{% endif %}{% icon "alert.svg" %}{% if not nested_links %}</a>{% endif %}
 </span>
-<span title="{% trans "Commented" context "String state" %}" class="state-comment">
-    <a href="{{ unit_url }}#comments">{% icon "comment.svg" %}</a>
+<span title="{% trans "Commented" context "String state" %}" class="state-comment" data-nested-href="{{ unit_url }}#comments">
+    {% if not nested_links %}<a href="{{ unit_url }}#comments">{% endif %}{% icon "comment.svg" %}{% if not nested_links %}</a>{% endif %}
 </span>
-<span title="{% trans "Suggested" context "String state" %}" class="state-suggest">
-    <a href="{{ unit_url }}#suggestions">{% icon "suggest.svg" %}</a>
+<span title="{% trans "Suggested" context "String state" %}" class="state-suggest" data-nested-href="{{ unit_url }}#suggestions">
+    {% if not nested_links %}<a href="{{ unit_url }}#suggestions">{% endif %}{% icon "suggest.svg" %}{% if not nested_links %}</a>{% endif %}
 </span>
 </span>
 {% endwith %}
