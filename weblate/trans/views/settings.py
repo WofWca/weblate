@@ -1,5 +1,5 @@
 #
-# Copyright © 2012 - 2020 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2021 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -75,7 +75,7 @@ def change_project(request, project):
     return render(
         request,
         "project-settings.html",
-        {"object": obj, "settings_form": settings_form},
+        {"object": obj, "form": settings_form},
     )
 
 

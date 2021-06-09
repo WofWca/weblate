@@ -1,5 +1,5 @@
 #
-# Copyright © 2012 - 2020 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2021 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -929,7 +929,10 @@ class Translation(
         fileobj.close()
         fileobj = BytesIOMode(fileobj.name, filecopy)
         with self.component.repository.lock:
-            self.commit_pending("replace file", request.user)
+            if self.is_source:
+                self.component.commit_pending("replace file", request.user)
+            else:
+                self.commit_pending("replace file", request.user)
             # This will throw an exception in case of error
             store2 = self.load_store(fileobj)
             store2.check_valid()
@@ -1093,6 +1096,7 @@ class Translation(
                     user=user,
                     author=user,
                 )
+            self.component.drop_template_store_cache()
             self.git_commit(user, user.get_author_name())
         self.component.create_translations(request=request)
 

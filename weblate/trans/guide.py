@@ -1,5 +1,5 @@
 #
-# Copyright © 2012 - 2020 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2021 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -136,7 +136,7 @@ class InstructionsGuideline(Guideline):
         )
 
     def get_doc_url(self, user=None):
-        return get_doc_url("admin/project", "project", user=user)
+        return get_doc_url("admin/projects", "project", user=user)
 
 
 @register

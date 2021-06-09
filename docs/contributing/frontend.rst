@@ -3,6 +3,19 @@ Weblate frontend
 
 The frontend is currently built using Bootstrap, jQuery and few third party libraries.
 
+Supported browsers
+------------------
+
+Weblate supports the latest, stable releases of all major browsers and
+platforms.
+
+Alternative browsers which use the latest version of WebKit, Blink, or Gecko,
+whether directly or via the platform’s web view API, are not explicitly
+supported. However, Weblate should (in most cases) display and function
+correctly in these browsers as well.
+
+Older browsers might work, but some features might be limited.
+
 Dependency management
 ---------------------
 
@@ -50,9 +63,12 @@ function, but there are more complex features available:
 Icons
 -----
 
-Weblate currently uses material design icons, in case you are looking for new
-one, check <https://materialdesignicons.com/>.
+Weblate currently uses material design icons. In case you are looking for new
+symbol, check `Material Design Icons`_ or `Material Design Resources`_.
 
 Additionally, there is :file:`scripts/optimize-svg` to reduce size of the SVG
 as most of the icons are embedded inside the HTML to allow styling of the
 paths.
+
+.. _Material Design Icons: https://materialdesignicons.com/
+.. _Material Design Resources: https://material.io/resources/icons/

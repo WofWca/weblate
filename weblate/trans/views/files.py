@@ -1,5 +1,5 @@
 #
-# Copyright © 2012 - 2020 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2021 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -54,13 +54,13 @@ def download_multi(translations, fmt=None, name="translations"):
         if translation.component_id in components:
             continue
         components.add(translation.component_id)
-        for name in (
+        for filename in (
             translation.component.template,
             translation.component.new_base,
             translation.component.intermediate,
         ):
-            if name:
-                fullname = os.path.join(translation.component.full_path, name)
+            if filename:
+                fullname = os.path.join(translation.component.full_path, filename)
                 if os.path.exists(fullname):
                     filenames.add(fullname)
 
@@ -126,11 +126,12 @@ def download_translation(request, project, component, lang):
         kwargs["units"] = (
             obj.unit_set.search(form.cleaned_data.get("q", ""))
             .distinct()
+            .order_by("position")
             .prefetch_full()
         )
         kwargs["fmt"] = form.cleaned_data["format"]
 
-    return download_translation_file(obj, **kwargs)
+    return download_translation_file(request, obj, **kwargs)
 
 
 @require_POST

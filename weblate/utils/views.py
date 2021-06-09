@@ -1,5 +1,5 @@
 #
-# Copyright © 2012 - 2020 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2021 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -30,6 +30,7 @@ from django.utils.http import http_date
 from django.utils.translation import activate
 from django.utils.translation import gettext as _
 from django.utils.translation import gettext_lazy, pgettext_lazy
+from django.views.decorators.gzip import gzip_page
 from django.views.generic.edit import FormView
 
 from weblate.formats.models import EXPORTERS
@@ -253,7 +254,8 @@ def zip_download(root, filenames, name="translations"):
     return response
 
 
-def download_translation_file(translation, fmt=None, units=None):
+@gzip_page
+def download_translation_file(request, translation, fmt=None, units=None):
     if fmt is not None:
         try:
             exporter_cls = EXPORTERS[fmt]
@@ -263,7 +265,7 @@ def download_translation_file(translation, fmt=None, units=None):
             raise Http404("File format not supported")
         exporter = exporter_cls(translation=translation)
         if units is None:
-            units = translation.unit_set.prefetch_full()
+            units = translation.unit_set.prefetch_full().order_by("position")
         exporter.add_units(units)
         response = exporter.get_response(
             "{{project}}-{0}-{{language}}.{{extension}}".format(

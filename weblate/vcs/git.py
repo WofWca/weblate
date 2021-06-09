@@ -1,5 +1,5 @@
 #
-# Copyright © 2012 - 2020 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2021 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -18,6 +18,7 @@
 #
 """Git based version control system abstraction for Weblate needs."""
 
+import json
 import logging
 import os
 import os.path
@@ -34,6 +35,7 @@ from django.utils.functional import cached_property
 from django.utils.translation import gettext_lazy
 from git.config import GitConfigParser
 
+from weblate.utils.files import is_excluded
 from weblate.utils.render import render_template
 from weblate.utils.xml import parse_xml
 from weblate.vcs.base import Repository, RepositoryException
@@ -305,6 +307,7 @@ class GitRepository(Repository):
         self, pull_url: str, push_url: str, branch: str, fast: bool = True
     ):
         """Configure remote repository."""
+        escaped_branch = json.dumps(branch)
         self.config_update(
             # Pull url
             ('remote "origin"', "url", pull_url),
@@ -314,15 +317,15 @@ class GitRepository(Repository):
             (
                 'remote "origin"',
                 "fetch",
-                f"+refs/heads/{branch}:refs/remotes/origin/{branch}"
+                json.dumps(f"+refs/heads/{branch}:refs/remotes/origin/{branch}")
                 if fast
                 else "+refs/heads/*:refs/remotes/origin/*",
             ),
             # Disable fetching tags
             ('remote "origin"', "tagOpt", "--no-tags"),
             # Set branch to track
-            (f'branch "{branch}"', "remote", "origin"),
-            (f'branch "{branch}"', "merge", f"refs/heads/{branch}"),
+            (f"branch {escaped_branch}", "remote", "origin"),
+            (f"branch {escaped_branch}", "merge", json.dumps(f"refs/heads/{branch}")),
         )
         self.branch = branch
 
@@ -752,11 +755,14 @@ class GithubRepository(GitMergeRequestBase):
             error_message = data["message"]
             self.log(data["message"], level=logging.INFO)
         if "errors" in data:
+            messages = []
             for error in data["errors"]:
-                self.log(error.get("message", str(error)), level=logging.WARNING)
+                line = error.get("message", str(error))
+                messages.append(line)
+                self.log(line, level=logging.WARNING)
             if error_message:
                 error_message += ": "
-            error_message += ", ".join(error["message"] for error in data["errors"])
+            error_message += ", ".join(messages)
 
         return data, error_message
 
@@ -869,8 +875,10 @@ class LocalRepository(GitRepository):
         # Create empty repo
         if not os.path.exists(target):
             cls._clone("local:", target, cls.default_branch)
-        # Extract zip file content
-        ZipFile(zipfile).extractall(target)
+        # Extract zip file content, ignoring some files
+        zipobj = ZipFile(zipfile)
+        names = [name for name in zipobj.namelist() if not is_excluded(name)]
+        zipobj.extractall(path=target, members=names)
         # Add to repository
         repo = cls(target)
         with repo.lock:
@@ -1049,7 +1057,14 @@ class PagureRepository(GitMergeRequestBase):
     _version = None
     API_TEMPLATE = "https://{host}/api/0"
 
-    def request(self, method: str, credentials: Dict, url: str, data: Dict):
+    def request(
+        self,
+        method: str,
+        credentials: Dict,
+        url: str,
+        data: Optional[Dict] = None,
+        params: Optional[Dict] = None,
+    ):
         response = requests.request(
             method,
             url,
@@ -1058,21 +1073,22 @@ class PagureRepository(GitMergeRequestBase):
                 "Authorization": "token {}".format(credentials["token"]),
             },
             data=data,
+            params=params,
         )
-        data = response.json()
+        response_data = response.json()
 
         # Log and parase all errors. Sometimes GitHub returns the error
         # messages in an errors list instead of the message. Sometimes, there
         # is no errors list. Hence the different logics
         error_message = ""
-        if "message" in data:
-            error_message = data["message"]
-        if "error" in data:
+        if "message" in response_data:
+            error_message = response_data["message"]
+        if "error" in response_data:
             if error_message:
                 error_message += ", "
-            error_message += data["error"]
+            error_message += response_data["error"]
 
-        return data, error_message
+        return response_data, error_message
 
     def create_fork(self, credentials: Dict):
         fork_url = "{}/fork".format(credentials["url"])
@@ -1094,7 +1110,7 @@ class PagureRepository(GitMergeRequestBase):
 
         for param in params:
             param.update(base_params)
-            response, error = self.request("post", credentials, fork_url, param)
+            response, error = self.request("post", credentials, fork_url, data=param)
             if '" cloned to "' in error or "already exists" in error:
                 break
 
@@ -1112,9 +1128,21 @@ class PagureRepository(GitMergeRequestBase):
         Use to merge branch in forked repository into branch of remote repository.
         """
         if credentials["owner"]:
-            pr_url = "{url}/{owner}/{slug}/pull-request/new".format(**credentials)
+            pr_base_url = "{url}/{owner}/{slug}/pull-request".format(**credentials)
         else:
-            pr_url = "{url}/{slug}/pull-request/new".format(**credentials)
+            pr_base_url = "{url}/{slug}/pull-request".format(**credentials)
+
+        # List existing pull requests
+        response, error_message = self.request(
+            "get", credentials, pr_base_url, params={"author": credentials["username"]}
+        )
+        if error_message:
+            raise RepositoryException(0, error_message or "Pull request listing failed")
+
+        if response["total_requests"] > 0:
+            # Open pull request from us is already there
+            return
+
         title, description = self.get_merge_message()
         request = {
             "branch_from": fork_branch,
@@ -1126,7 +1154,9 @@ class PagureRepository(GitMergeRequestBase):
             request["repo_from"] = credentials["slug"]
             request["repo_from_username"] = credentials["username"]
 
-        response, error_message = self.request("post", credentials, pr_url, request)
+        response, error_message = self.request(
+            "post", credentials, f"{pr_base_url}/new", data=request
+        )
 
         if "id" not in response:
             raise RepositoryException(0, error_message or "Pull request failed")

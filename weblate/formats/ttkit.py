@@ -1,5 +1,5 @@
 #
-# Copyright © 2012 - 2020 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2021 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -57,6 +57,7 @@ from weblate.trans.util import (
 from weblate.utils.errors import report_error
 
 LOCATIONS_RE = re.compile(r"^([+-]|.*, [+-]|.*:[+-])")
+PO_DOCSTRING_LOCATION = re.compile(r":docstring of [a-zA-Z0-9._]+:[0-9]+")
 SUPPORTS_FUZZY = (pounit, tsunit)
 XLIFF_FUZZY_STATES = {"new", "needs-translation", "needs-adaptation", "needs-l10n"}
 
@@ -375,12 +376,15 @@ class TTKitFormat(TranslationFormat):
                 output.write(cls.get_new_file_content())
 
     @classmethod
-    def is_valid_base_for_new(cls, base, monolingual, errors: Optional[List] = None):
+    def is_valid_base_for_new(
+        cls, base, monolingual, errors: Optional[List] = None, fast: bool = False
+    ):
         """Check whether base is valid."""
         if not base:
             return monolingual and cls.new_translation is not None
         try:
-            cls.parse_store(base)
+            if not fast:
+                cls.parse_store(base)
             return True
         except Exception as exception:
             if errors is not None:
@@ -449,6 +453,17 @@ class PoUnit(TTKitUnit):
             return ""
         return get_string(self.unit.prev_source)
 
+    @cached_property
+    def locations(self):
+        """
+        Return comma separated list of locations.
+
+        Here we cleanup Sphinx generated "docstring of ..." part.
+        """
+        locations = " ".join(self.mainunit.getlocations())
+        locations = PO_DOCSTRING_LOCATION.sub("", locations)
+        return ", ".join(locations.split())
+
 
 class PoMonoUnit(PoUnit):
     @cached_property
@@ -459,7 +474,11 @@ class PoMonoUnit(PoUnit):
         """
         # Monolingual PO files
         if self.template is not None:
-            return self.template.source or self.template.getcontext()
+            context = self.template.getcontext().strip()
+            source = self.template.source.strip()
+            if source and context:
+                return f"{context}.{source}"
+            return source or context
         return super().context
 
     @cached_property
@@ -756,6 +775,10 @@ class CSVUnit(MonolingualSimpleUnit):
         return self.unescape_csv(self.mainunit.getcontext())
 
     @cached_property
+    def locations(self):
+        return self.mainunit.location
+
+    @cached_property
     def source(self):
         # Needed to avoid Translate Toolkit construct ID
         # as context\04source
@@ -1030,11 +1053,12 @@ class PropertiesUtf8Format(PropertiesBaseFormat):
     language_format = "java"
 
 
-class PropertiesUtf16Format(PropertiesUtf8Format):
+class PropertiesUtf16Format(PropertiesBaseFormat):
     name = _("Java Properties (UTF-16)")
     format_id = "properties-utf16"
     loader = ("properties", "javafile")
     language_format = "java"
+    new_translation = "\n"
 
     @classmethod
     def fixup(cls, store):
@@ -1045,12 +1069,13 @@ class PropertiesUtf16Format(PropertiesUtf8Format):
         store.encoding = "utf-16"
 
 
-class PropertiesFormat(PropertiesUtf8Format):
+class PropertiesFormat(PropertiesBaseFormat):
     name = _("Java Properties (ISO 8859-1)")
     format_id = "properties"
     loader = ("properties", "javafile")
-    autoload = ("*.properties",)
     language_format = "java"
+    new_translation = "\n"
+    autoload = ("*.properties",)
 
     @classmethod
     def fixup(cls, store):
@@ -1490,18 +1515,39 @@ class XWikiPropertiesFormat(PropertiesBaseFormat):
     autoload = ("*.properties",)
     new_translation = "\n"
 
+    # Ensure that not translated units are saved too as missing properties and
+    # comments are preserved as in the original source file.
     def save_content(self, handle):
         current_units = self.all_units
+        store_units = self.store.units
+
+        # We empty the store units since we want to control what we'll serialize
         self.store.units = []
-        # Ensure that not translated units are saved too as missing properties.
+
         for unit in current_units:
-            if unit.unit is None:
-                if not unit.has_content():
-                    unit.unit = unit.mainunit
+            # If the translation unit is missing and the current unit is not
+            # only about comment.
+            if unit.unit is None and unit.has_content():
+
+                # We first check if the unit has not been translated as part of a
+                # new language: in that case the unit is not linked yet.
+                found_store_unit = None
+                for store_unit in store_units:
+                    if unit.context == store_unit.name:
+                        found_store_unit = store_unit
+
+                # If we found a unit for same context not linked, we just link it.
+                if found_store_unit is not None:
+                    unit.unit = found_store_unit
+                # else it's a missing unit: we need to mark it as missing.
                 else:
                     missingunit = self.find_unit(unit.context, unit.source)[0]
                     unit.unit = missingunit.unit
                     unit.unit.missing = True
+            # if the unit was only a comment, we take back the original source file unit
+            # to avoid any change.
+            elif not unit.has_content():
+                unit.unit = unit.mainunit
             self.add_unit(unit.unit)
 
         self.store.serialize(handle)

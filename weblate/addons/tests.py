@@ -1,5 +1,5 @@
 #
-# Copyright © 2012 - 2020 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2021 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -314,6 +314,24 @@ class AndroidAddonTest(ViewTestCase):
         commit = self.component.repository.show(self.component.repository.last_revision)
         self.assertIn("android-not-synced/values-cs/strings.xml", commit)
         self.assertIn('\n-    <string name="hello"/>', commit)
+
+
+class WindowsRCAddonTest(ViewTestCase):
+    def create_component(self):
+        return self.create_winrc()
+
+    def test_cleanup(self):
+        self.assertTrue(CleanupAddon.can_install(self.component, None))
+        rev = self.component.repository.last_revision
+        addon = CleanupAddon.create(self.component)
+        self.assertNotEqual(rev, self.component.repository.last_revision)
+        rev = self.component.repository.last_revision
+        addon.post_update(self.component, "", False)
+        self.assertEqual(rev, self.component.repository.last_revision)
+        addon.post_update(self.component, "", False)
+        commit = self.component.repository.show(self.component.repository.last_revision)
+        self.assertIn("winrc/cs-CZ.rc", commit)
+        self.assertIn("\n-IDS_MSG5", commit)
 
 
 class IntermediateAddonTest(ViewTestCase):

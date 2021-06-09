@@ -275,7 +275,7 @@ Filesystem permissions
 
 The Weblate process needs to be able to read and write to the directory where
 it keeps data - :setting:`DATA_DIR`. All files within this directory should be
-owned and writable by the user running Weblate.
+owned and writable by the user running all Weblate processes (typically WSGI and Celery, see :ref:`server` and :ref:`celery`).
 
 The default configuration places them in the same tree as the Weblate sources, however
 you might prefer to move these to a better location such as:
@@ -389,7 +389,7 @@ complex setups the role name is different than username and you will get error
 about non-existing role during the database migration
 (``psycopg2.errors.UndefinedObject: role "weblate@hostname" does not exist``).
 This is known to happen with Azure Database for PostgreSQL, but it's not
-limited to this evironment. Please set ``ALTER_ROLE`` to change name of the
+limited to this environment. Please set ``ALTER_ROLE`` to change name of the
 role Weblate should alter during the database migration.
 
 .. _mysql:
@@ -413,14 +413,78 @@ Weblate requires MySQL at least 5.7.8 or MariaDB at least 10.2.7.
 Following configuration is recommended for Weblate:
 
 * Use the ``utf8mb4`` charset to allow representation of higher Unicode planes (for example emojis).
-* Configure the server with ``Innodb_large_prefix`` to allow longer indices on text fields.
+* Configure the server with ``innodb_large_prefix`` to allow longer indices on text fields.
 * Set the isolation level to ``READ COMMITTED``.
 * The SQL mode should be set to ``STRICT_TRANS_TABLES``.
+
+Below is an example :file:`/etc/my.cnf.d/server.cnf` for a server with 8 GB of
+RAM. These settings should be sufficient for most installs. MySQL and MariaDB
+have tunables that will increase the performance of your server that are
+considered not necessary unless you are planning on having large numbers of
+concurrent users accessing the system. See the various vendors documentation on
+those details.
+
+It is absolutely critical to reduce issues when installing that the setting
+``innodb_file_per_table`` is set properly and MySQL/MariaDB restarted before
+you start your Weblate install.
+
+.. code-block:: sh
+
+   [mysqld]
+   character-set-server = utf8mb4
+   character-set-client = utf8mb4
+   collation-server = utf8mb4_unicode_ci
+
+   datadir=/var/lib/mysql
+
+   log-error=/var/log/mariadb/mariadb.log
+
+   innodb_large_prefix=1
+   innodb_file_format=Barracuda
+   innodb_file_per_table=1
+   innodb_buffer_pool_size=2G
+   sql_mode=STRICT_TRANS_TABLES
 
 .. hint::
 
    In case you are getting ``#1071 - Specified key was too long; max key length
-   is 767 bytes`` error, please set ``Innodb_large_prefix`` as described above.
+   is 767 bytes`` error, please update your configuration to include the ``innodb``
+   settings above and restart your install.
+
+Configuring Weblate to use MySQL/MariaDB
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The :file:`settings.py` snippet for MySQL and MariaDB:
+
+.. code-block:: python
+
+    DATABASES = {
+        "default": {
+            # Database engine
+            "ENGINE": "django.db.backends.mysql",
+            # Database name
+            "NAME": "weblate",
+            # Database user
+            "USER": "weblate",
+            # Database password
+            "PASSWORD": "password",
+            # Set to empty string for localhost
+            "HOST": "127.0.0.1",
+            # Set to empty string for default
+            "PORT": "3306",
+            # In case you wish to use additional
+            # connection options
+            "OPTIONS": {},
+        }
+    }
+
+You should also create the ``weblate`` user account in MySQL or MariaDB before
+you begin the install. Use the commands below to achieve that:
+
+.. code-block:: sh
+
+   GRANT ALL ON weblate.* to 'weblate'@'localhost' IDENTIFIED BY 'password';
+   FLUSH PRIVILEGES;
 
 Other configurations
 --------------------
@@ -448,15 +512,10 @@ Django documentation.
     by using insecure connection and server refuses to authenticate this way.
     Try enabling :setting:`django:EMAIL_USE_TLS` in such case.
 
-.. note::
-
-   You can verify whether outgoing e-mail is working correctly by using the
-   :djadmin:`django:sendtestemail` management command (see :ref:`invoke-manage`
-   for instructions on how to invoke it in different environments).
-
 .. seealso::
 
-   :ref:`docker-mail` for configuring outgoing e-mail in Docker container.
+   :ref:`debug-mails`,
+   :ref:`Configuring outgoing e-mail in Docker container <docker-mail>`
 
 .. _reverse-proxy:
 
@@ -673,6 +732,8 @@ need to fix all of them):
 
     weblate check --deploy
 
+You can also review the very same checklist from the :ref:`management-interface`.
+
 .. seealso::
 
     :doc:`django:howto/deployment/checklist`
@@ -815,6 +876,11 @@ variable, for example:
             },
         }
     }
+
+.. hint::
+
+   In case you change Redis settings for the cache, you might need to adjust
+   them for Celery as well, see :ref:`celery`.
 
 .. seealso::
 
@@ -1119,7 +1185,7 @@ You will need several services to run Weblate, the recommended setup consists of
 * Database server (see :ref:`database-setup`)
 * Cache server (see :ref:`production-cache`)
 * Frontend web server for static files and SSL termination (see :ref:`static-files`)
-* Wsgi server for dynamic content (see :ref:`uwsgi`)
+* WSGI server for dynamic content (see :ref:`uwsgi`)
 * Celery for executing background tasks (see :ref:`celery`)
 
 .. note::
@@ -1131,6 +1197,14 @@ In most cases, you will run all services on single (virtual) server, but in
 case your installation is heavy loaded, you can split up the services. The only
 limitation on this is that Celery and Wsgi servers need access to
 :setting:`DATA_DIR`.
+
+.. note::
+
+   The WSGI process has to be executed under the same user the Celery
+   process, otherwise files in the :setting:`DATA_DIR` will be stored with
+   mixed ownership, leading to runtime issues.
+
+   See also :ref:`file-permissions` and :ref:`celery`.
 
 Running web server
 ++++++++++++++++++
@@ -1304,17 +1378,27 @@ Background tasks using Celery
 
 .. versionadded:: 3.2
 
-Weblate uses Celery to process background tasks. The example settings come with
-eager configuration, which does process all tasks in place, but you want to
-change this to something more reasonable for a production setup.
-
-A typical setup using Redis as a backend looks like this:
+Weblate uses Celery to process background tasks. A typical setup using Redis as
+a backend looks like this:
 
 .. code-block:: python
 
    CELERY_TASK_ALWAYS_EAGER = False
    CELERY_BROKER_URL = "redis://localhost:6379"
    CELERY_RESULT_BACKEND = CELERY_BROKER_URL
+
+.. seealso::
+
+   :ref:`Redis broker configuration in Celery <celery:broker-redis-configuration>`
+
+For development, you might want to use eager configuration, which does process
+all tasks in place, but this will have performance impact on Weblate:
+
+.. code-block:: python
+
+   CELERY_TASK_ALWAYS_EAGER = True
+   CELERY_BROKER_URL = "memory://"
+   CELERY_TASK_EAGER_PROPAGATES = True
 
 You should also start the Celery worker to process the tasks and start
 scheduled tasks, this can be done directly on the command line (which is mostly
@@ -1324,6 +1408,14 @@ useful when debugging or developing):
 
    ./weblate/examples/celery start
    ./weblate/examples/celery stop
+
+.. note::
+
+   The Celery process has to be executed under the same user as the WSGI
+   process, otherwise files in the :setting:`DATA_DIR` will be stored with
+   mixed ownership, leading to runtime issues.
+
+   See also :ref:`file-permissions` and :ref:`server`.
 
 
 Running Celery as system service
@@ -1348,12 +1440,6 @@ Logrotate configuration to be placed as :file:`/etc/logrotate.d/celery`:
 
 .. literalinclude:: ../../weblate/examples/celery-weblate.logrotate
     :language: text
-
-.. note::
-
-   The Celery process has to be executed under the same user as Weblate and the WSGI
-   process, otherwise files in the :setting:`DATA_DIR` will be stored with
-   mixed ownership, leading to runtime issues.
 
 Periodic tasks using Celery beat
 ++++++++++++++++++++++++++++++++

@@ -1,5 +1,5 @@
 #
-# Copyright © 2012 - 2020 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2021 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -81,7 +81,7 @@ def list_projects(request):
 
 def add_ghost_translations(component, user, translations, generator):
     """Adds ghost translations for user languages to the list."""
-    if component.can_add_new_language(user):
+    if component.can_add_new_language(user, fast=True):
         existing = {translation.language.code for translation in translations}
         for language in user.profile.languages.all():
             if language.code in existing:
@@ -133,7 +133,7 @@ def show_project(request, project):
     obj.stats.ensure_basic()
     user = request.user
 
-    last_changes = Change.objects.prefetch().order().filter(project=obj)[:10]
+    last_changes = obj.change_set.prefetch().order()[:10]
     last_announcements = (
         Change.objects.prefetch()
         .order()
@@ -144,7 +144,7 @@ def show_project(request, project):
     # Show ghost translations for user languages
     component = None
     for component in obj.component_set.filter_access(user).all():
-        if component.can_add_new_language(user):
+        if component.can_add_new_language(user, fast=True):
             break
     if component:
         add_ghost_translations(
@@ -211,7 +211,7 @@ def show_component(request, project, component):
     obj.stats.ensure_basic()
     user = request.user
 
-    last_changes = Change.objects.prefetch().order().filter(component=obj)[:10]
+    last_changes = obj.change_set.prefetch().order()[:10]
 
     translations = prefetch_stats(list(obj.translation_set.prefetch()))
 
@@ -281,7 +281,7 @@ def show_component(request, project, component):
 def show_translation(request, project, component, lang):
     obj = get_translation(request, project, component, lang)
     obj.stats.ensure_all()
-    last_changes = Change.objects.prefetch().order().filter(translation=obj)[:10]
+    last_changes = obj.change_set.prefetch().order()[:10]
     user = request.user
 
     # Get form
@@ -305,7 +305,7 @@ def show_translation(request, project, component, lang):
     for test_component in obj.component.project.component_set.filter_access(
         user
     ).exclude(slug__in=existing):
-        if test_component.can_add_new_language(user):
+        if test_component.can_add_new_language(user, fast=True):
             other_translations.append(GhostTranslation(test_component, obj.language))
 
     # Limit the number of other components displayed to 10, preferring untranslated ones

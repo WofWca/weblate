@@ -375,6 +375,10 @@ Generic settings
     Makes Weblate assume it is operated behind a reverse HTTPS proxy, it makes
     Weblate use HTTPS in e-mail and API links or set secure flags on cookies.
 
+    .. hint::
+
+        Please see :setting:`ENABLE_HTTPS` documentation for possible caveats.
+
     .. note::
 
         This does not make the Weblate container accept HTTPS connections, you
@@ -389,7 +393,9 @@ Generic settings
 
     .. seealso::
 
-        :ref:`production-site`
+      :setting:`ENABLE_HTTPS`
+      :ref:`production-site`,
+      :envvar:`WEBLATE_SECURE_PROXY_SSL_HEADER`
 
 .. envvar:: WEBLATE_IP_PROXY_HEADER
 
@@ -437,7 +443,7 @@ Generic settings
 
 .. envvar:: WEBLATE_REQUIRE_LOGIN
 
-    Configures sign in required for the whole of the Weblate installation using :setting:`LOGIN_REQUIRED_URLS`.
+    Enables :setting:`REQUIRE_LOGIN` to enforce authentication on whole Weblate.
 
     **Example:**
 
@@ -450,7 +456,8 @@ Generic settings
 .. envvar:: WEBLATE_ADD_LOGIN_REQUIRED_URLS_EXCEPTIONS
 .. envvar:: WEBLATE_REMOVE_LOGIN_REQUIRED_URLS_EXCEPTIONS
 
-    Adds URL exceptions for sign in required for the whole Weblate installation using :setting:`LOGIN_REQUIRED_URLS_EXCEPTIONS`.
+    Adds URL exceptions for authentication required for the whole Weblate
+    installation using :setting:`LOGIN_REQUIRED_URLS_EXCEPTIONS`.
 
     You can either replace whole settings, or modify default value using ``ADD`` and ``REMOVE`` variables.
 

@@ -263,6 +263,9 @@
 
 {% if others.total %}
 <div class="tab-pane" id="others">
+{% if others.skipped %}
+  <p class="help-block">{% trans "Showing only subset of the strings as there were too many matches." %}</p>
+{% endif %}
 <form method="POST" action="{{ unit.translation.get_translate_url}}?{{ search_url }}&amp;offset={{ offset }}&amp;checksum={{ unit.checksum }}">
   {% csrf_token %}
   <table class="table table-condensed">
@@ -413,7 +416,11 @@
             {% documentation_icon 'user/checks' check.check_obj.doc_id right=True %}
             <span class="red">{% icon "alert.svg" %}</span>
             {{ check.get_name }}
-            <span class="check-number"></span>
+            {% if check.is_enforced %}
+              <span class="badge">{% trans "Enforced" %}</span>
+            {% else %}
+              <span class="check-number"></span>
+            {% endif %}
         </h5>
         <p class="list-group-item-text check-description">{{ check.get_description }}</p>
         {% with fixup=check.get_fixup_json %}
@@ -475,7 +482,7 @@
             {% icon "variant.svg" %}
             {% trans "Variants" %}
         </h5>
-        <p class="list-group-item-text">{% blocktrans count count=variants|length %}There is {{ count }} variant for this string.{% plural %}There are {{ count }} variants for this string.{% endblocktrans %}</p>
+        <p class="list-group-item-text">{% blocktrans count count=variants|length %}There is {{ count }} variant of this string.{% plural %}There are {{ count }} variants of this string.{% endblocktrans %}</p>
         <p class="list-group-item-text list-buttons">
             <a href="#variants" data-toggle="tab" class="btn btn-warning">{% trans "View" %}</a>
         </p>

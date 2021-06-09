@@ -1,5 +1,5 @@
 #
-# Copyright © 2012 - 2020 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2021 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -853,12 +853,7 @@ class Unit(FastDeleteModelMixin, models.Model, LoggerMixin):
     def generate_change(self, user, author, change_action, check_new=True):
         """Create Change entry for saving unit."""
         # Notify about new contributor
-        if (
-            check_new
-            and not Change.objects.filter(
-                translation=self.translation, user=user
-            ).exists()
-        ):
+        if check_new and not self.translation.change_set.filter(user=user).exists():
             Change.objects.create(
                 unit=self,
                 action=Change.ACTION_NEW_CONTRIBUTOR,
@@ -1127,17 +1122,17 @@ class Unit(FastDeleteModelMixin, models.Model, LoggerMixin):
 
     @cached_property
     def edit_mode(self):
-        """Returns edit mode for CodeMirror."""
+        """Returns syntax higlighting mode for Prismjs."""
         flags = self.all_flags
         if "rst-text" in flags:
-            return "text/x-rst"
+            return "rest"
         if "md-text" in flags:
-            return "text/x-markdown"
+            return "markdown"
         if "xml-text" in flags:
-            return "application/xml"
+            return "xml"
         if "safe-html" in flags:
-            return "text/html"
-        return "null"
+            return "html"
+        return "none"
 
     def get_secondary_units(self, user):
         """Return list of secondary units."""

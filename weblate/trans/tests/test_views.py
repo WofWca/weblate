@@ -1,5 +1,5 @@
 #
-# Copyright © 2012 - 2020 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2021 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -136,7 +136,7 @@ class ViewTestCase(RepoTestCase):
         return request
 
     def get_translation(self, language="cs"):
-        return self.component.translation_set.get(language_code=language)
+        return self.component.translation_set.get(language__code=language)
 
     def get_unit(self, source="Hello, world!\n", language="cs"):
         translation = self.get_translation(language)

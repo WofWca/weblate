@@ -1,5 +1,5 @@
 #
-# Copyright © 2012 - 2020 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2021 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -143,7 +143,7 @@ CONTACT_SUBJECTS = {
     "reg": "Registration problems",
     "hosting": "Commercial hosting",
     "account": "Suspicious account activity",
-    "trial": "Trial request",
+    "trial": "Trial extension request",
 }
 
 ANCHOR_RE = re.compile(r"^#[a-z]+$")
@@ -210,8 +210,8 @@ def mail_admins_contact(request, subject, message, context, sender, to):
         return
 
     mail = EmailMultiAlternatives(
-        "{}{}".format(settings.EMAIL_SUBJECT_PREFIX, subject % context),
-        "{}\n{}".format(
+        subject="{}{}".format(settings.EMAIL_SUBJECT_PREFIX, subject % context),
+        body="{}\n{}".format(
             message % context,
             TEMPLATE_FOOTER.format(
                 address=get_ip_address(request),
@@ -220,7 +220,7 @@ def mail_admins_contact(request, subject, message, context, sender, to):
             ),
         ),
         to=to,
-        headers={"Reply-To": sender},
+        from_email=sender,
     )
 
     mail.send(fail_silently=False)

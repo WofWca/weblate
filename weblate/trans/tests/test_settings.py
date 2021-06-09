@@ -1,5 +1,5 @@
 #
-# Copyright © 2012 - 2020 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2021 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -41,7 +41,7 @@ class SettingsTest(ViewTestCase):
         url = reverse("settings", kwargs=self.kw_project)
         response = self.client.get(url)
         self.assertContains(response, "Settings")
-        data = response.context["settings_form"].initial
+        data = response.context["form"].initial
         data["web"] = "https://example.com/test/"
         response = self.client.post(url, data, follow=True)
         self.assertContains(response, "Settings saved")
@@ -56,7 +56,7 @@ class SettingsTest(ViewTestCase):
 
         # Get initial form data
         response = self.client.get(url)
-        data = response.context["settings_form"].initial
+        data = response.context["form"].initial
         data["access_control"] = Project.ACCESS_PROTECTED
 
         # No permissions

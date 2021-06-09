@@ -38,11 +38,11 @@ def setup(app):
 # -- Project information -----------------------------------------------------
 
 project = "Weblate"
-copyright = "2012 - 2020 Michal Čihař"
+copyright = "2012 - 2021 Michal Čihař"
 author = "Michal Čihař"
 
 # The full version, including alpha/beta/rc tags
-release = "4.4"
+release = "4.4.1"
 
 
 # -- General configuration ---------------------------------------------------
@@ -241,6 +241,8 @@ autodoc_mock_imports = [
     "weblate.addons.models",
     "weblate.trans.models",
     "weblate.lang.models",
+    "weblate.vcs.git",
+    "weblate.utils.files",
 ]
 
 # Gettext / i18n

@@ -1,5 +1,5 @@
 #
-# Copyright © 2012 - 2020 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2021 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -378,6 +378,10 @@ class ComponentTest(RepoTestCase):
     def test_create_odt(self):
         component = self.create_odt()
         self.verify_component(component, 2, "cs", 4, unit="Hello, world!")
+
+    def test_create_winrc(self):
+        component = self.create_winrc()
+        self.verify_component(component, 2, "cs-CZ", 4)
 
     def test_link(self):
         component = self.create_link()

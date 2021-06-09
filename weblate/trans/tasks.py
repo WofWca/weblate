@@ -1,5 +1,5 @@
 #
-# Copyright © 2012 - 2020 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2021 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -301,6 +301,12 @@ def component_removal(pk, uid):
             author=user,
         )
         obj.delete()
+        if obj.allow_translation_propagation:
+            components = obj.project.component_set.filter(
+                allow_translation_propagation=True
+            ).exclude(pk=obj.pk)
+            for component_id in components.values_list("id", flat=True):
+                update_checks.delay(component_id)
     except Component.DoesNotExist:
         return
 
@@ -377,7 +383,7 @@ def create_component(addons_from=None, in_task=False, **kwargs):
                 continue
             addon.addon.create(component, configuration=addon.configuration)
     if in_task:
-        return None
+        return {"component": component.id}
     return component
 
 

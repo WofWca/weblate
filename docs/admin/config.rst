@@ -167,7 +167,7 @@ Available fixes:
 ``weblate.trans.autofixes.whitespace.SameBookendingWhitespace``
     Matches whitespace at the start and end of the string to the source.
 ``weblate.trans.autofixes.chars.ReplaceTrailingDotsWithEllipsis``
-    Replaces trailing dots (...) if the source string has ellipsis (…).
+    Replaces trailing dots (...) if the source string has a corresponding ellipsis (…).
 ``weblate.trans.autofixes.chars.RemoveZeroSpace``
     Removes zero-width space characters if the source does not contain any.
 ``weblate.trans.autofixes.chars.RemoveControlChars``
@@ -240,7 +240,7 @@ CSP_SCRIPT_SRC, CSP_IMG_SRC, CSP_CONNECT_SRC, CSP_STYLE_SRC, CSP_FONT_SRC
 
 Customize ``Content-Security-Policy`` header for Weblate. The header is
 automatically generated based on enabled integrations with third-party services
-(Matomo, Google Analytics, Sentry, ...).
+(Matomo, Google Analytics, Sentry, …).
 
 All these default to empty list.
 
@@ -600,16 +600,23 @@ ENABLE_HTTPS
 Whether to send links to Weblate as HTTPS or HTTP. This setting affects sent
 e-mails and generated absolute URLs.
 
-.. hint::
+In the default configuration this is also used for several Django settings
+related to HTTPS - it enables secure cookies, toggles HSTS or enables
+redirection to HTTPS URL.
 
-   In the default configuration this is also used for several Django settings
-   related to HTTPS.
+The HTTPS redirection might be problematic in some cases and you might hit
+issue with infinite redirection in case you are using a reverse proxy doing SSL
+termination which does not correctly pass protocol headers to Django. Please
+tweak your reverse proxy configuration to emit ``X-Forwarded-Proto`` or
+``Forwarded`` headers or configure :setting:`django:SECURE_PROXY_SSL_HEADER` to
+let Django correctly detect the SSL status.
 
 .. seealso::
 
     :setting:`django:SESSION_COOKIE_SECURE`,
     :setting:`django:CSRF_COOKIE_SECURE`,
     :setting:`django:SECURE_SSL_REDIRECT`,
+    :setting:`django:SECURE_PROXY_SSL_HEADER`
     :ref:`production-site`
 
 .. setting:: ENABLE_SHARING
@@ -990,6 +997,10 @@ A list of URLs you want to require logging into. (Besides the standard rules bui
 .. hint::
 
    It is desirable to lock down API access as well, as shown in the above example.
+
+.. seealso::
+
+   :setting:`REQUIRE_LOGIN`
 
 .. setting:: LOGIN_REQUIRED_URLS_EXCEPTIONS
 
@@ -1685,7 +1696,7 @@ REQUIRE_LOGIN
 .. versionadded:: 4.1
 
 This enables :setting:`LOGIN_REQUIRED_URLS` and configures REST framework to
-require sign in for all API endpoints.
+require authentication for all API endpoints.
 
 .. note::
 

@@ -1,5 +1,5 @@
 #
-# Copyright © 2012 - 2020 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2021 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -25,6 +25,7 @@ from django.urls import reverse
 
 from weblate.trans.models import Change, Component, Unit
 from weblate.trans.tests.test_views import ViewTestCase
+from weblate.trans.util import join_plural
 from weblate.utils.hash import hash_to_checksum
 from weblate.utils.state import STATE_FUZZY, STATE_READONLY, STATE_TRANSLATED
 
@@ -616,12 +617,40 @@ class EditComplexTest(ViewTestCase):
         # check that we cannot revert to string from another translation
         self.edit_unit("Thank you for using Weblate.", "Kiitoksia Weblaten kaytosta.")
         unit2 = self.get_unit(source="Thank you for using Weblate.")
-        change = Change.objects.filter(unit=unit2).order()[0]
+        change = unit2.change_set.order()[0]
         response = self.client.get(
             self.translate_url, {"checksum": unit.checksum, "revert": change.id}
         )
         self.assertContains(response, "Invalid revert request!")
         self.assert_backend(2)
+
+    def test_revert_plural(self):
+        source = "Orangutan has %d banana.\n"
+        target = [
+            "Opice má %d banán.\n",
+            "Opice má %d banány.\n",
+            "Opice má %d banánů.\n",
+        ]
+        target_2 = [
+            "Orangutan má %d banán.\n",
+            "Orangutan má %d banány.\n",
+            "Orangutan má %d banánů.\n",
+        ]
+        self.edit_unit(source, target[0], target_1=target[1], target_2=target[2])
+        # Ensure other edit gets different timestamp
+        time.sleep(1)
+        self.edit_unit(source, target_2[0], target_1=target_2[1], target_2=target_2[2])
+        unit = self.get_unit(source)
+        changes = Change.objects.content().filter(unit=unit).order()
+        self.assertEqual(changes[1].target, join_plural(target))
+        self.assertEqual(changes[0].target, join_plural(target_2))
+        self.assert_backend(1)
+        # revert it
+        self.client.get(
+            self.translate_url, {"checksum": unit.checksum, "revert": changes[0].id}
+        )
+        unit = self.get_unit(source)
+        self.assertEqual(unit.get_target_plurals(), target)
 
     def test_edit_fixup(self):
         # Save with failing check
