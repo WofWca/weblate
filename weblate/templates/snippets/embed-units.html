@@ -4,7 +4,7 @@
 <table class="table table-condensed">
 <thead>
 <tr>
-    <th></th>
+    {% if current_unit %}<th></th>{% endif %}
     <th>{{ translation.component.context_label }}</th>
     {% if not translation.is_source %}
     <th>{{ translation.component.source_language }}</th>
@@ -16,7 +16,7 @@
 <tbody>
 {% for unit in units %}
 <tr {% if current_unit.id == unit.id %}class="current_translation"{% endif %}>
-<td>{% format_relative_unit_position unit current_unit %}</td>
+{% if current_unit %}<td>{% format_relative_unit_position unit current_unit %}</td>{% endif %}
 <td>{% if unit.context %}<a href="{{ unit.get_absolute_url }}{% if sort_query %}&amp;sort_by={{ sort_query }}{% endif %}">{% format_translation unit.context unit.translation.component.source_language simple=True wrap=True %}</a>{% endif %}</td>
 {% if not unit.is_source %}
 <td><a href="{{ unit.get_absolute_url }}{% if sort_query %}&amp;sort_by={{ sort_query }}{% endif %}" {% if current_unit.id == unit.id %}style="color:unset"{% endif %}>{% format_translation unit.source unit.translation.component.source_language simple=True %}</a></td>
