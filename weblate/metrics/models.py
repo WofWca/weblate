@@ -19,29 +19,35 @@
 from datetime import date, timedelta
 
 from django.db import models
+from django.db.models import Q
 
 
 class MetricQuerySet(models.QuerySet):
     def get_current(self, scope: int, relation: int, **kwargs):
         from weblate.metrics.tasks import collect_global
 
+        today = date.today()
+        yesterday = today - timedelta(days=1)
+
         # Get todays stats
         data = dict(
             self.filter(
-                scope=scope, relation=relation, date=date.today(), **kwargs
+                scope=scope, relation=relation, date=today, **kwargs
             ).values_list("name", "value")
         )
         if not data:
             # Fallback to yesterday in case they are not yet calculated
             data = dict(
                 self.filter(
-                    scope=scope,
-                    relation=relation,
-                    date=date.today() - timedelta(days=1),
-                    **kwargs,
+                    scope=scope, relation=relation, date=yesterday, **kwargs
                 ).values_list("name", "value")
             )
-        if not data:
+        if (
+            not data
+            and not self.filter(
+                (Q(date=yesterday) | Q(date=today)) & Q(scope=Metric.SCOPE_GLOBAL)
+            ).exists()
+        ):
             # Trigger collection in case no data is present
             collect_global()
             return self.get_current(scope, relation, **kwargs)
@@ -54,17 +60,20 @@ class Metric(models.Model):
     SCOPE_COMPONENT = 2
     SCOPE_TRANSLATION = 3
     SCOPE_USER = 4
+    SCOPE_COMPONENT_LIST = 5
+    SCOPE_PROJECT_LANGUAGE = 6
 
     date = models.DateField(auto_now_add=True)
     scope = models.SmallIntegerField()
     relation = models.IntegerField()
+    secondary = models.IntegerField(default=0)
     name = models.CharField(max_length=100)
     value = models.IntegerField(db_index=True)
 
     objects = MetricQuerySet.as_manager()
 
     class Meta:
-        index_together = (("date", "scope", "relation", "name"),)
+        unique_together = (("date", "scope", "relation", "secondary", "name"),)
 
     def __str__(self):
         return f"<{self.scope}.{self.relation}>:{self.date}:{self.name}={self.value}"
