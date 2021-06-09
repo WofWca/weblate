@@ -172,7 +172,7 @@ class Migration(migrations.Migration):
                     "translate_mode",
                     models.IntegerField(
                         choices=[(0, "Full editor"), (1, "Zen mode")],
-                        default=0,
+                        default=1,
                         verbose_name="Translation editor mode",
                     ),
                 ),
@@ -180,7 +180,7 @@ class Migration(migrations.Migration):
                     "zen_mode",
                     models.IntegerField(
                         choices=[(0, "Top to bottom"), (1, "Side by side")],
-                        default=0,
+                        default=1,
                         verbose_name="Zen editor mode",
                     ),
                 ),
