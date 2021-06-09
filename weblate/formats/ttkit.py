@@ -231,6 +231,7 @@ class TTKitFormat(TranslationFormat):
             template_store=template_store,
             language_code=language_code,
             is_template=is_template,
+            source_language=source_language,
         )
         # Set language (needed for some which do not include this)
         if language_code is not None and self.store.gettargetlanguage() is None:
@@ -337,6 +338,11 @@ class TTKitFormat(TranslationFormat):
         return True
 
     def construct_unit(self, source: str):
+        if issubclass(self.store.UnitClass, LISAunit) and self.source_language:
+            # Setting source on LISAunit will make it use default language
+            unit = self.store.UnitClass(None)
+            unit.setsource(source, self.source_language)
+            return unit
         return self.store.UnitClass(source)
 
     def create_unit_key(self, key: str, source: Union[str, List[str]]) -> str:
@@ -372,7 +378,10 @@ class TTKitFormat(TranslationFormat):
             target = source
             source = self.create_unit_key(key, source)
 
-        unit.source = source
+        if isinstance(unit, LISAunit) and self.source_language:
+            unit.setsource(source, self.source_language)
+        else:
+            unit.source = source
         if isinstance(unit, LISAunit) and self.language_code:
             unit.settarget(target, self.language_code)
         else:
@@ -1017,6 +1026,7 @@ class PoMonoFormat(BasePoFormat):
         'Content-Transfer-Encoding: 8bit"'
     )
     unit_class = PoMonoUnit
+    bilingual_class = PoFormat
 
     def create_unit_key(self, key: str, source: Union[str, List[str]]) -> str:
         if isinstance(source, list):
@@ -1050,7 +1060,7 @@ class XliffFormat(TTKitFormat):
     set_context_bilingual = False
 
     def construct_unit(self, source: str):
-        unit = self.store.UnitClass(source)
+        unit = super().construct_unit(source)
         # Make sure new unit is using same namespace as the original
         # file (xliff 1.1/1.2)
         unit.namespace = self.store.namespace
@@ -1071,7 +1081,7 @@ class XliffFormat(TTKitFormat):
 
 
 class PoXliffFormat(XliffFormat):
-    name = _("XLIFF translation file with PO extensions")
+    name = _("XLIFF with gettext extensions")
     format_id = "poxliff"
     autoload = ("*.poxliff",)
     loader = PoXliffFile
@@ -1301,6 +1311,7 @@ class CSVFormat(TTKitFormat):
             storefile,
             template_store=template_store,
             language_code=language_code,
+            source_language=source_language,
             is_template=is_template,
         )
         # Remove template if the file contains source, this is needed
@@ -1706,6 +1717,7 @@ class TBXFormat(TTKitFormat):
     unit_class = TBXUnit
     create_empty_bilingual: bool = True
     set_context_bilingual: bool = False
+    monolingual = False
 
     def __init__(
         self,
@@ -1720,6 +1732,7 @@ class TBXFormat(TTKitFormat):
             template_store=template_store,
             language_code=language_code,
             is_template=is_template,
+            source_language=source_language,
         )
         # Add language header if not present
         self.store.addheader()

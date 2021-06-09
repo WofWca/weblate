@@ -198,6 +198,11 @@ Enable source reviews
 
 Enable review workflow for source strings, see :ref:`source-reviews`.
 
+.. seealso::
+
+   :ref:`report-source`,
+   :ref:`user-comments`
+
 .. _project-enable_hooks:
 
 Enable hooks
@@ -298,6 +303,10 @@ Version control system
 
 VCS to use, see :ref:`vcs` for details.
 
+.. seealso::
+
+   :ref:`push-changes`
+
 .. _component-repo:
 
 Source code repository
@@ -372,6 +381,10 @@ Branch for pushing changes, leave empty to use :ref:`component-branch`.
 
    This is currently only supported for Git, GitLab and GitHub, it is ignored
    for other VCS integrations.
+
+.. seealso::
+
+   :ref:`push-changes`
 
 .. _component-filemask:
 
@@ -671,6 +684,11 @@ changes in a component are committed once there is at least one older than
 this period.
 
 Default value can be changed by :setting:`COMMIT_PENDING_HOURS`.
+
+.. hint::
+
+   There are other situations where pending changes might be committed, see
+   :ref:`lazy-commit`.
 
 .. _component-auto_lock_error:
 

@@ -21,7 +21,7 @@ Use any component as a glossary by turning on :ref:`component-is_glossary`.
 
 An empty glossary for a given project is automatically created with the project.
 Glossaries are shared among all components of the same project, and optionally
-with other projects using :ref:`component-links`.
+with other projects using :ref:`component-links` on the glossary component.
 
 The glossary component looks like any other component in Weblate:
 
@@ -48,7 +48,7 @@ Glossary terms which are read-only are not meant to be translated. You can use
 this for names or other terms which should not change while translating. Such
 terms are visually highlighted in the glossary sidebar.
 
-The terms can be flagged in the source language using :guilabel:`Tools` ↓
+The terms can be flagged using :guilabel:`Tools` ↓
 :guilabel:`Mark as read-only`. In the background this toggles the ``read-only``
 flag of the string.
 

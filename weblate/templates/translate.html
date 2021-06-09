@@ -21,9 +21,9 @@
 {% block breadcrumbs %}
 <li><a href="{{ project.get_absolute_url }}">{{ project }}</a></li>
 {% if object.component.slug != "-" %}
-<li><a href="{{ object.component.get_absolute_url }}">{{ object.component.name }}</a></li>
+{% include "snippets/component-breadcrumb.html" with object=object.component %}
 {% endif %}
-<li><a href="{{ object.get_absolute_url }}">{{ object.language }}</a></li>
+{% include "snippets/translation-breadcrumb.html" %}
 {% if object.component.slug == "-" %}
 <li><a href="{{ unit.translation.component.get_absolute_url }}">{{ unit.translation.component.name }}</a></li>
 {% endif %}
@@ -523,13 +523,12 @@
 {% endif %}
 
 
-{% if not unit.is_source %}
 <div class="panel panel-default">
   <div class="panel-heading">
   <h4 class="panel-title">
     {% with glossaries=unit.translation.component.project.glossaries %}
       {% if glossaries|length == 1 %}
-        <a class="pull-right flip btn btn-link btn-xs" title="{% trans "Manage glossary" %}" href="{% url 'translation' project=glossaries.0.project.slug component=glossaries.0.slug lang=unit.translation.language.code %}">{% icon "pencil.svg" %}</a>
+        <a class="pull-right flip btn btn-link btn-xs" title="{% trans "Manage glossary" %}" href="{% url 'browse' project=glossaries.0.project.slug component=glossaries.0.slug lang=unit.translation.language.code %}">{% icon "pencil.svg" %}</a>
       {% endif %}
     {% endwith %}
     {% loading_icon "glossary-add" %}
@@ -575,7 +574,6 @@
     </form>
 {% endif %}
 </div>
-{% endif %}
 
 <div class="panel panel-default string-info">
   <div class="panel-heading">

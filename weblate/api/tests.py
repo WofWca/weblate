@@ -19,6 +19,7 @@
 
 from copy import copy
 from datetime import timedelta
+from io import BytesIO
 
 from django.core.files import File
 from django.urls import reverse
@@ -919,7 +920,7 @@ class ProjectAPITest(APIBaseTest):
 
     def test_changes(self):
         request = self.do_request("api:project-changes", self.project_kwargs)
-        self.assertEqual(request.data["count"], 21)
+        self.assertEqual(request.data["count"], 20)
 
     def test_statistics(self):
         request = self.do_request("api:project-statistics", self.project_kwargs)
@@ -1110,11 +1111,34 @@ class ProjectAPITest(APIBaseTest):
             },
         )
         self.assertEqual(Component.objects.count(), 3)
+        component = Component.objects.get(slug="api-project", project__slug="test")
         self.assertEqual(
-            Component.objects.get(slug="api-project", project__slug="test").push,
+            component.push,
             "https://username:password@github.com/example/push.git",
         )
+        self.assertFalse(component.manage_units)
+        self.assertFalse(response.data["manage_units"])
         self.assertEqual(response.data["push"], "https://github.com/example/push.git")
+        response = self.do_request(
+            "api:project-components",
+            self.project_kwargs,
+            method="post",
+            code=201,
+            superuser=True,
+            request={
+                "name": "Other",
+                "slug": "other",
+                "repo": self.format_local_path(self.git_repo_path),
+                "filemask": "android/values-*/strings.xml",
+                "file_format": "aresource",
+                "template": "android/values/strings.xml",
+                "new_lang": "none",
+            },
+        )
+        self.assertEqual(Component.objects.count(), 4)
+        component = Component.objects.get(slug="other", project__slug="test")
+        self.assertTrue(component.manage_units)
+        self.assertTrue(response.data["manage_units"])
 
     def test_create_component_no_format(self):
         repo_url = self.format_local_path(self.git_repo_path)
@@ -1335,6 +1359,111 @@ class ProjectAPITest(APIBaseTest):
                     "new_lang": "none",
                 },
             )
+
+    def test_create_component_enforced(self):
+        response = self.do_request(
+            "api:project-components",
+            self.project_kwargs,
+            method="post",
+            code=400,
+            superuser=True,
+            request={
+                "name": "Local project",
+                "slug": "local-project",
+                "repo": "local:",
+                "vcs": "local",
+                "filemask": "*.strings",
+                "template": "en.strings",
+                "file_format": "strings-utf8",
+                "push": "https://username:password@github.com/example/push.git",
+                "new_lang": "none",
+                "enforced_checks": "",
+            },
+        )
+        response = self.do_request(
+            "api:project-components",
+            self.project_kwargs,
+            method="post",
+            code=400,
+            superuser=True,
+            request={
+                "name": "Local project",
+                "slug": "local-project",
+                "repo": "local:",
+                "vcs": "local",
+                "filemask": "*.strings",
+                "template": "en.strings",
+                "file_format": "strings-utf8",
+                "push": "https://username:password@github.com/example/push.git",
+                "new_lang": "none",
+                "enforced_checks": '""',
+            },
+        )
+        response = self.do_request(
+            "api:project-components",
+            self.project_kwargs,
+            method="post",
+            code=400,
+            superuser=True,
+            format="json",
+            request={
+                "name": "Local project",
+                "slug": "local-project",
+                "repo": "local:",
+                "vcs": "local",
+                "filemask": "*.strings",
+                "template": "en.strings",
+                "file_format": "strings-utf8",
+                "push": "https://username:password@github.com/example/push.git",
+                "new_lang": "none",
+                "enforced_checks": "",
+            },
+        )
+        response = self.do_request(
+            "api:project-components",
+            self.project_kwargs,
+            method="post",
+            code=400,
+            superuser=True,
+            format="json",
+            request={
+                "name": "Local project",
+                "slug": "local-project",
+                "repo": "local:",
+                "vcs": "local",
+                "filemask": "*.strings",
+                "template": "en.strings",
+                "file_format": "strings-utf8",
+                "push": "https://username:password@github.com/example/push.git",
+                "new_lang": "none",
+                "enforced_checks": ["xxx"],
+            },
+        )
+        response = self.do_request(
+            "api:project-components",
+            self.project_kwargs,
+            method="post",
+            code=201,
+            superuser=True,
+            format="json",
+            request={
+                "name": "Local project",
+                "slug": "local-project",
+                "repo": "local:",
+                "vcs": "local",
+                "filemask": "*.strings",
+                "template": "en.strings",
+                "file_format": "strings-utf8",
+                "push": "https://username:password@github.com/example/push.git",
+                "new_lang": "none",
+                "enforced_checks": ["same"],
+            },
+        )
+        self.assertEqual(response.data["repo"], "local:")
+        self.assertEqual(response.data["enforced_checks"], ["same"])
+        self.assertEqual(Component.objects.count(), 3)
+        component = Component.objects.get(slug="local-project")
+        self.assertEqual(component.enforced_checks, ["same"])
 
 
 class ComponentAPITest(APIBaseTest):
@@ -1793,6 +1922,31 @@ class TranslationAPITest(APIBaseTest):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response_json["count"], 1)
         self.assertEqual(response_json["results"][0]["source"], ["Hello, world!\n"])
+
+    def test_upload_bytes(self):
+        self.authenticate()
+        with open(TEST_PO, "rb") as handle:
+            response = self.client.put(
+                reverse("api:translation-file", kwargs=self.translation_kwargs),
+                {"file": BytesIO(handle.read())},
+            )
+        self.assertEqual(
+            response.data,
+            {
+                "accepted": 1,
+                "count": 4,
+                "not_found": 0,
+                "result": True,
+                "skipped": 0,
+                "total": 4,
+            },
+        )
+        translation = self.component.translation_set.get(language_code="cs")
+        unit = translation.unit_set.get(source="Hello, world!\n")
+        self.assertEqual(unit.target, "Ahoj světe!\n")
+        self.assertEqual(unit.state, STATE_TRANSLATED)
+
+        self.assertEqual(self.component.project.stats.suggestions, 0)
 
     def test_upload(self):
         self.authenticate()
@@ -2646,7 +2800,7 @@ class ScreenshotAPITest(APIBaseTest):
 class ChangeAPITest(APIBaseTest):
     def test_list_changes(self):
         response = self.client.get(reverse("api:change-list"))
-        self.assertEqual(response.data["count"], 21)
+        self.assertEqual(response.data["count"], 20)
 
     def test_filter_changes_after(self):
         """Filter chanages since timestamp."""
@@ -2654,7 +2808,7 @@ class ChangeAPITest(APIBaseTest):
         response = self.client.get(
             reverse("api:change-list"), {"timestamp_after": start.isoformat()}
         )
-        self.assertEqual(response.data["count"], 21)
+        self.assertEqual(response.data["count"], 20)
 
     def test_filter_changes_before(self):
         """Filter changes prior to timestamp."""

@@ -170,6 +170,7 @@ class TranslationFormat:
     new_translation: Optional[Union[str, bytes]] = None
     autoaddon: Dict[str, Dict[str, str]] = {}
     create_empty_bilingual: bool = False
+    bilingual_class = None
 
     @classmethod
     def get_identifier(cls):
@@ -193,6 +194,7 @@ class TranslationFormat:
             storefile,
             template_store=template_store,
             language_code=language_code,
+            source_language=source_language,
             is_template=is_template,
         )
 

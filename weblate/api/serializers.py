@@ -25,6 +25,7 @@ from rest_framework import serializers
 from weblate.accounts.models import Subscription
 from weblate.addons.models import ADDONS, Addon
 from weblate.auth.models import Group, Permission, Role, User
+from weblate.checks.models import CHECKS
 from weblate.lang.models import Language, Plural
 from weblate.screenshots.models import Screenshot
 from weblate.trans.defines import LANGUAGE_NAME_LENGTH, REPO_LENGTH
@@ -514,6 +515,14 @@ class ComponentSerializer(RemovableSerializer):
             }
         }
 
+    def validate_enforced_checks(self, value):
+        if not isinstance(value, list):
+            raise serializers.ValidationError("Enforced checks has to be a list.")
+        for item in value:
+            if item not in CHECKS:
+                raise serializers.ValidationError(f"Unsupported enforced check: {item}")
+        return value
+
     def to_representation(self, instance):
         """Remove VCS properties if user has no permission for that."""
         result = super().to_representation(instance)
@@ -527,6 +536,7 @@ class ComponentSerializer(RemovableSerializer):
         return result
 
     def fixup_request_payload(self, data):
+        data = data.copy()
         if "source_language" in data:
             language = data["source_language"]
             data["source_language"] = Language.objects.get(
@@ -534,16 +544,15 @@ class ComponentSerializer(RemovableSerializer):
             )
         if "project" in self._context:
             data["project"] = self._context["project"]
-        if "manage_units" not in data:
-            data["manage_units"] = bool(data.get("template"))
+        return data
 
     def to_internal_value(self, data):
         # Preprocess to inject params based on content
+        data = data.copy()
+        if "manage_units" not in data and data.get("template"):
+            data["manage_units"] = "1"
         if "docfile" in data:
-            fake_data = data.copy()
-            self.fixup_request_payload(fake_data)
-            fake = create_component_from_doc(fake_data)
-            data["project"] = self._context["project"]
+            fake = create_component_from_doc(self.fixup_request_payload(data))
             data["template"] = fake.template
             data["new_base"] = fake.template
             data["filemask"] = fake.filemask
@@ -552,10 +561,8 @@ class ComponentSerializer(RemovableSerializer):
             data["branch"] = "main"
             data.pop("docfile")
         if "zipfile" in data:
-            fake_data = data.copy()
-            self.fixup_request_payload(fake_data)
             try:
-                create_component_from_zip(fake_data)
+                create_component_from_zip(self.fixup_request_payload(data))
             except BadZipfile:
                 raise serializers.ValidationError("Failed to parse uploaded ZIP file.")
             data["repo"] = "local:"
@@ -565,8 +572,7 @@ class ComponentSerializer(RemovableSerializer):
         # DRF processing
         result = super().to_internal_value(data)
         # Postprocess to inject values
-        self.fixup_request_payload(result)
-        return result
+        return self.fixup_request_payload(result)
 
     def validate(self, attrs):
         # Call model validation here, DRF does not do that

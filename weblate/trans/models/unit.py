@@ -455,7 +455,7 @@ class Unit(FastDeleteModelMixin, models.Model, LoggerMixin):
         ):
             # We can not exclude current unit here as we need to trigger
             # the updates below
-            for unit in self.unit_set.prefetch_full():
+            for unit in self.unit_set.prefetch().prefetch_full():
                 unit.update_state()
                 unit.update_priority()
                 unit.run_checks()
@@ -635,6 +635,7 @@ class Unit(FastDeleteModelMixin, models.Model, LoggerMixin):
                 # not changed outside
                 previous_source = self.previous_source
                 state = self.state
+                original_state = self.original_state
 
         # Update checks on fuzzy update or on content change
         same_target = target == self.target
@@ -895,7 +896,7 @@ class Unit(FastDeleteModelMixin, models.Model, LoggerMixin):
         This is needed when editing template translation for monolingual formats.
         """
         # Find relevant units
-        for unit in self.unit_set.exclude(id=self.id).prefetch_full():
+        for unit in self.unit_set.exclude(id=self.id).prefetch().prefetch_full():
             # Update source and number of words
             unit.source = self.target
             unit.num_words = self.num_words
@@ -1345,7 +1346,7 @@ class Unit(FastDeleteModelMixin, models.Model, LoggerMixin):
     def get_flag_actions(self):
         flags = Flags(self.extra_flags)
         result = []
-        if self.is_source:
+        if self.is_source or self.translation.component.is_glossary:
             if "read-only" in flags:
                 result.append(
                     ("removeflag", "read-only", gettext("Unmark as read-only"))

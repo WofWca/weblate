@@ -923,6 +923,10 @@ Projects
 
     .. hint::
 
+       Use :ref:`internal-urls` when creating multiple components from a single VCS repository.
+
+    .. note::
+
         Most of the component creation happens in the background. Check the
         ``task_url`` attribute of created component and follow the progress
         there.
@@ -1789,9 +1793,8 @@ Translations
 
 .. http:get:: /api/translations/(string:project)/(string:component)/(string:language)/file/
 
-    Download current translation file as stored in VCS (without ``format``
-    parameter) or as converted to a standard format (currently supported:
-    Gettext PO, MO, XLIFF and TBX).
+    Download current translation file as it is stored in the VCS (without the ``format``
+    parameter) or converted to another format (see :ref:`download`).
 
     .. note::
 

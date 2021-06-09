@@ -295,6 +295,12 @@ LICENSES = (
         True,
     ),
     (
+        "BSD-3-Clause-Modification",
+        "BSD 3-Clause Modification",
+        "https://fedoraproject.org/wiki/Licensing:BSD#Modification_Variant",
+        False,
+    ),
+    (
         "BSD-3-Clause-No-Nuclear-License",
         "BSD 3-Clause No Nuclear License",
         "http://download.oracle.com/otn-pub/java/licenses/bsd.txt?AuthParam=1467140197_43d516ce1776bd08a58235a7785be1cc",
@@ -432,19 +438,19 @@ LICENSES = (
         "CERN-OHL-P-2.0",
         "CERN Open Hardware Licence Version 2 - Permissive",
         "https://www.ohwr.org/project/cernohl/wikis/Documents/CERN-OHL-version-2",
-        False,
+        True,
     ),
     (
         "CERN-OHL-S-2.0",
         "CERN Open Hardware Licence Version 2 - Strongly Reciprocal",
         "https://www.ohwr.org/project/cernohl/wikis/Documents/CERN-OHL-version-2",
-        False,
+        True,
     ),
     (
         "CERN-OHL-W-2.0",
         "CERN Open Hardware Licence Version 2 - Weakly Reciprocal",
         "https://www.ohwr.org/project/cernohl/wikis/Documents/CERN-OHL-version-2",
-        False,
+        True,
     ),
     (
         "ClArtistic",
@@ -1509,6 +1515,12 @@ LICENSES = (
     ("Multics", "Multics License", "https://opensource.org/licenses/Multics", True),
     ("Mup", "Mup License", "https://fedoraproject.org/wiki/Licensing/Mup", False),
     (
+        "NAIST-2003",
+        "Nara Institute of Science and Technology License (2003)",
+        "https://enterprise.dejacode.com/licenses/public/naist-2003/#license-text",
+        False,
+    ),
+    (
         "NASA-1.3",
         "NASA Open Source Agreement 1.3",
         "http://ti.arc.nasa.gov/opensource/nosa/",
@@ -2140,6 +2152,12 @@ LICENSES = (
         "Sybase Open Watcom Public License 1.0",
         "https://opensource.org/licenses/Watcom-1.0",
         True,
+    ),
+    (
+        "OGDL-Taiwan-1.0",
+        "Taiwan Open Government Data License, version 1.0",
+        "https://data.gov.tw/license",
+        False,
     ),
     (
         "TAPR-OHL-1.0",
