@@ -46,9 +46,11 @@
 {% perm 'suggestion.vote' unit.translation as user_can_vote_suggestion %}
 {% perm 'machinery.view' unit.translation as user_can_use_machinery %}
 {% perm 'source.edit' unit.translation as user_can_edit_source %}
+{% perm 'unit.flag' unit.translation as user_can_edit_flags %}
 {% perm 'screenshot.add' unit.translation as user_can_add_screenshot %}
 {% perm 'comment.add' unit.translation as user_can_add_comment %}
 {% perm 'glossary.add' project as user_can_add_glossary %}
+{% perm 'unit.add' unit.translation as user_can_add_unit %}
 
 <div class="btn-group pull-right flip btn-group-settings" role="group">
 {% if user_can_translate %}
@@ -75,10 +77,18 @@
   <div class="panel-heading">
   <a class="btn btn-link btn-xs pull-right flip" href="{{ site_url }}{{ unit.get_absolute_url }}" data-clipboard-text="{{ site_url }}{{ unit.get_absolute_url }}" title="{% trans "Copy permalink" %}">{% icon "link.svg" %}</a>
   <h4 class="panel-title">
-    {% if unit.is_source %}
-        {% trans "Source string" %}
+    {% if unit.translation.component.is_glossary %}
+      {% if "forbidden" in item.all_flags %}
+        {% trans "Forbidden glossary term" %}
+      {% else %}
+        {% trans "Glossary term" %}
+      {% endif %}
     {% else %}
+      {% if unit.is_source %}
+        {% trans "Source string" %}
+      {% else %}
         {% trans "Translation" %}
+      {% endif %}
     {% endif %}
     {% include "snippets/unit-readonly-badge.html" %}
   </h4></div>
@@ -109,7 +119,7 @@
             <!-- editing template -->
             <div class="form-group">
             <label>{{ unit.translation.component.context_label }}</label>
-            {% format_translation unit.context unit.translation.component.source_language search_match=search_query num_plurals=unit.translation.plural.number %}
+            {% format_translation unit.context unit.translation.component.source_language search_match=search_query num_plurals=unit.translation.plural.number wrap=True %}
             </div>
         {% endif %}
         {% if unit.translation.component.intermediate %}
@@ -149,14 +159,14 @@
             {% if unit.context %}
                 <div class="pull-right flip">
                 <label>{{ unit.translation.component.context_label }}</label>
-                {{ unit.context }}
+                {% format_translation unit.context unit.translation.component.source_language simple=True wrap=True %}
                 </div>
             {% endif %}
             <a class="language" href="{{ unit.source_unit.get_absolute_url }}">{{ unit.translation.component.source_language }}</a>
             {% if unit.translation.component.project.source_review %}
             <a title="{% trans "Report issue with the source string" %}" href="#" class="btn btn-link btn-xs bug-comment">{% icon "bug.svg" %}</a>
             {% endif %}
-            {% format_translation unit.source unit.translation.component.source_language search_match=search_query num_plurals=unit.translation.plural.number unit=unit %}
+            {% format_translation unit.source unit.translation.component.source_language search_match=search_query num_plurals=unit.translation.plural.number unit=unit glossary=glossary %}
             </div>
         {% endif %}
     {% endif %}
@@ -165,9 +175,28 @@
     {% crispy form %}
   </div>
   <div class="panel-footer">
-    {% if user_can_delete %}
-      <a href="{% url "delete-unit" unit_id=unit.pk %}" class="pull-right flip btn btn-danger link-post">{% trans "Remove" %}</a>
-    {% endif %}
+    {% with flag_actions=unit.get_flag_actions %}
+      {% if user_can_delete or user_can_edit_flags and flag_actions or user_can_add_unit %}
+        <div class="btn-group pull-right flip">
+          <button type="button" class="btn btn-primary dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" id="unit_tools_dropdown">
+            {% trans "Tools" %} <span class="caret"></span>
+          </button>
+          <ul class="dropdown-menu">
+            {% if user_can_delete %}
+              <li><a href="{% url "delete-unit" unit_id=unit.pk %}" class="link-post">{% trans "Delete string" %}</a></li>
+            {% endif %}
+            {% if user_can_edit_flags and flag_actions %}
+              {% for action, value, name in flag_actions %}
+                <li><a href="{% url 'edit_context' pk=unit.pk %}" class="link-post" data-params='{"{{ action|escapejs }}": "{{ value|escapejs }}", "next": "{{ this_unit_url|escapejs }}"}'>{{ name }}</a></li>
+              {% endfor %}
+            {% endif %}
+            {% if user_can_add_unit %}
+              <li><a href="#" data-toggle="modal" data-target="#add-unit-form">{% trans "Add variant of this string" %}</a></li>
+            {% endif %}
+          </ul>
+        </div>
+      {% endif %}
+    {% endwith %}
     <button class="btn btn-primary" type="submit" name="save" tabindex="150"
     {% if locked or not user_can_translate %}
         disabled="disabled"
@@ -228,25 +257,25 @@
 {% if user_can_use_machinery %}
 <li><a href="#machinery" data-toggle="tab" id="toggle-machinery" data-load="machinery" title="{% trans "Computer-aided translation suggestions" %}">{% trans "Automatic suggestions" %}</a></li>
 {% endif %}
-<li><a href="#translations" data-toggle="tab" id="toggle-translations" data-href="{% url 'js-unit-translations' unit_id=unit.id %}" title="{% trans "Translations of this string in the other languages" %}">{% trans "Other languages" %}</a></li>
+<li><a href="#translations" data-toggle="tab" id="toggle-translations" data-href="{% url 'js-unit-translations' unit_id=unit.id %}" title="{% trans "Translations of this string in the other languages" %}">{% trans "Other languages" %} <span class="badge">{{ object.component.stats.languages|add:-1 }}</span> </a></li>
 <li><a href="#history" data-toggle="tab" id="toggle-history" title="{% trans "List of recent changes done in Weblate" %}">{% trans "History" %}</a></li>
 </ul>
 
 <div class="tab-content">
 
 <div class="tab-pane active" id="nearby">
-{% include "snippets/embed-units.html" with current_unit=unit units=nearby %}
+{% include "snippets/embed-units.html" with current_unit=unit units=nearby translation=unit.translation %}
 </div>
 
 {% if nearby_keys %}
 <div class="tab-pane" id="keys">
-{% include "snippets/embed-units.html" with current_unit=unit units=nearby_keys %}
+{% include "snippets/embed-units.html" with current_unit=unit units=nearby_keys translation=unit.translation %}
 </div>
 {% endif %}
 
 {% if variants|length > 1 %}
 <div class="tab-pane" id="variants">
-{% include "snippets/embed-units.html" with current_unit=unit units=variants %}
+{% include "snippets/embed-units.html" with current_unit=unit units=variants translation=unit.translation %}
 </div>
 {% endif %}
 
@@ -493,10 +522,16 @@
 </div>
 {% endif %}
 
+
+{% if not unit.is_source %}
 <div class="panel panel-default">
   <div class="panel-heading">
   <h4 class="panel-title">
-    <a class="pull-right flip btn btn-link btn-xs" title="{% trans "Manage glossary" %}" href="{% url 'show_glossary' project=unit.translation.component.project.slug lang=unit.translation.language.code %}">{% icon "pencil.svg" %}</a>
+    {% with glossaries=unit.translation.component.project.glossaries %}
+      {% if glossaries|length == 1 %}
+        <a class="pull-right flip btn btn-link btn-xs" title="{% trans "Manage glossary" %}" href="{% url 'translation' project=glossaries.0.project.slug component=glossaries.0.slug lang=unit.translation.language.code %}">{% icon "pencil.svg" %}</a>
+      {% endif %}
+    {% endwith %}
     {% loading_icon "glossary-add" %}
     {% trans "Glossary" %}
   </h4>
@@ -506,6 +541,7 @@
         <tr>
         <th>{{ unit.translation.component.source_language }}</th>
         <th>{{ unit.translation.language }}</th>
+        <th></th>
         <th></th>
         </tr>
         </thead>
@@ -539,6 +575,7 @@
     </form>
 {% endif %}
 </div>
+{% endif %}
 
 <div class="panel panel-default string-info">
   <div class="panel-heading">
@@ -688,5 +725,28 @@
 </form>
 
 {% endwith %}
+
+{% if user_can_add_unit %}
+  <form action="{% url 'new-unit' project=unit.translation.component.project.slug component=unit.translation.component.slug lang=unit.translation.language.code %}" method="post">
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ this_unit_url }}" />
+    <div class="modal fade" tabindex="-1" role="dialog" id="add-unit-form">
+      <div class="modal-dialog" role="document">
+        <div class="modal-content">
+          <div class="modal-header">
+            <button type="button" class="close" data-dismiss="modal" aria-label="{% trans "Close" %}"><span aria-hidden="true">&times;</span></button>
+            <h4 class="panel-title">{% trans "Add new translation string" %}</h4>
+          </div>
+          <div class="modal-body">
+            {{ new_unit_form|crispy }}
+          </div>
+          <div class="modal-footer">
+            <input type="submit" class="btn btn-primary" value="{% trans "Add" %}" />
+          </div>
+        </div><!-- /.modal-content -->
+      </div><!-- /.modal-dialog -->
+    </div><!-- /.modal -->
+  </form>
+{% endif %}
 
 {% endblock %}

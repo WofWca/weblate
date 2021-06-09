@@ -76,6 +76,26 @@ indicates a mistake in the translation.
    This check includes language specific rules to avoid false positives. In
    case it triggers falsely in your case, let us know. See :ref:`report-issue`.
 
+.. _check-check-glossary:
+
+Does not follow glossary
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. versionadded:: 4.5
+
+*The translation does not follow terms defined in a glossary.*
+
+This check has to be turned on using ``check-glossary`` flag (see
+:ref:`custom-checks`). Please consider following prior to enabling it:
+
+* It does exact string matching, the glossary is expected to contain terms in all variants.
+* Checking each string against glossary is expensive, it will slow down any operation in Weblate which involves running checks like importing strings or translating.
+
+.. seealso::
+
+   :ref:`glossary`,
+   :ref:`custom-checks`,
+   :ref:`component-check_flags`
 
 .. _check-double-space:
 
@@ -97,6 +117,7 @@ Check is false when double space is found in source meaning double space is inte
 .. _check-java-format:
 .. _check-java-messageformat:
 .. _check-javascript-format:
+.. _check-lua-format:
 .. _check-percent-placeholders:
 .. _check-perl-format:
 .. _check-php-format:
@@ -148,7 +169,7 @@ AngularJS interpolation string
 
 .. seealso::
 
-    `AngularJS: API: $interpolate <https://docs.angularjs.org/api/ng/service/$interpolate>`_
+   `AngularJS text interpolation <https://angular.io/guide/interpolation>`_
 
 C format
 ********
@@ -268,6 +289,21 @@ JavaScript format
 .. seealso::
 
     `JavaScript formatting strings <https://www.gnu.org/software/gettext/manual/html_node/javascript_002dformat.html>`_
+
+Lua format
+**********
+
+*Lua format string does not match source*
+
++------------------------+------------------------------------------------------------+
+| Simple format string   | ``There are %d apples``                                    |
++------------------------+------------------------------------------------------------+
+| Flag to enable         | `lua-format`                                               |
++------------------------+------------------------------------------------------------+
+
+.. seealso::
+
+    `Lua formatting strings <https://www.gnu.org/software/gettext/manual/html_node/lua_002dformat.html#lua_002dformat>`_
 
 Percent placeholders
 ********************
@@ -742,7 +778,7 @@ separated with colon, strings with space can be quoted:
 
    placeholders:$URL$:$TARGET$:"some long text"
 
-In case you have some syntax for placeholders, you can use an regular expression:
+In case you have some syntax for placeholders, you can use a regular expression:
 
 .. code-block:: text
 

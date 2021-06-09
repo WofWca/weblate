@@ -49,6 +49,7 @@ from weblate.utils.celery import app
 from weblate.utils.data import data_dir
 from weblate.utils.errors import report_error
 from weblate.utils.files import remove_tree
+from weblate.utils.stats import prefetch_stats
 from weblate.vcs.base import RepositoryException
 
 
@@ -118,7 +119,7 @@ def commit_pending(hours=None, pks=None, logger=None):
     else:
         components = Component.objects.filter(translation__pk__in=pks).distinct()
 
-    for component in components.prefetch():
+    for component in prefetch_stats(components.prefetch()):
         if hours is None:
             age = timezone.now() - timedelta(hours=component.commit_pending_age)
         else:
@@ -269,20 +270,20 @@ def repository_alerts(threshold=settings.REPOSITORY_ALERT_THRESHOLD):
 @app.task(trail=False)
 def component_alerts(component_ids=None):
     if component_ids:
-        components = Component.objects.filter(pk__in=component_ids).iterator()
+        components = Component.objects.filter(pk__in=component_ids)
     else:
-        components = Component.objects.iterator()
-    for component in components:
+        components = Component.objects.all()
+    for component in components.prefetch():
         component.update_alerts()
 
 
 @app.task(trail=False, autoretry_for=(Component.DoesNotExist,), retry_backoff=60)
 def component_after_save(
-    pk, changed_git, changed_setup, changed_template, changed_variant, skip_push
+    pk, changed_git, changed_setup, changed_template, changed_variant, skip_push, create
 ):
     component = Component.objects.get(pk=pk)
     component.after_save(
-        changed_git, changed_setup, changed_template, changed_variant, skip_push
+        changed_git, changed_setup, changed_template, changed_variant, skip_push, create
     )
     return {"component": pk}
 
@@ -342,7 +343,10 @@ def auto_translate(
     with override(user.profile.language if user else "en"):
         translation = Translation.objects.get(pk=translation_id)
         translation.log_info(
-            "starting automatic translation %s", current_task.request.id
+            "starting automatic translation %s: %s: %s",
+            current_task.request.id,
+            auto_source,
+            ", ".join(engines) if engines else component,
         )
         auto = AutoTranslate(user, translation, filter_type, mode)
         if auto_source == "mt":

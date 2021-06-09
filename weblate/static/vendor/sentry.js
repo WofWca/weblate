@@ -1,4 +1,4 @@
-/*! @sentry/browser 5.29.2 (6b4f304) | https://github.com/getsentry/sentry-javascript */
+/*! @sentry/browser 6.1.0 (245d11f) | https://github.com/getsentry/sentry-javascript */
 var Sentry = (function (exports) {
     /*! *****************************************************************************
     Copyright (c) Microsoft Corporation. All rights reserved.
@@ -501,8 +501,8 @@ var Sentry = (function (exports) {
          */
         Dsn.prototype.toString = function (withPassword) {
             if (withPassword === void 0) { withPassword = false; }
-            var _a = this, host = _a.host, path = _a.path, pass = _a.pass, port = _a.port, projectId = _a.projectId, protocol = _a.protocol, user = _a.user;
-            return (protocol + "://" + user + (withPassword && pass ? ":" + pass : '') +
+            var _a = this, host = _a.host, path = _a.path, pass = _a.pass, port = _a.port, projectId = _a.projectId, protocol = _a.protocol, publicKey = _a.publicKey;
+            return (protocol + "://" + publicKey + (withPassword && pass ? ":" + pass : '') +
                 ("@" + host + (port ? ":" + port : '') + "/" + (path ? path + "/" : path) + projectId));
         };
         /** Parses a string into this Dsn. */
@@ -511,7 +511,7 @@ var Sentry = (function (exports) {
             if (!match) {
                 throw new SentryError(ERROR_MESSAGE);
             }
-            var _a = __read(match.slice(1), 6), protocol = _a[0], user = _a[1], _b = _a[2], pass = _b === void 0 ? '' : _b, host = _a[3], _c = _a[4], port = _c === void 0 ? '' : _c, lastPath = _a[5];
+            var _a = __read(match.slice(1), 6), protocol = _a[0], publicKey = _a[1], _b = _a[2], pass = _b === void 0 ? '' : _b, host = _a[3], _c = _a[4], port = _c === void 0 ? '' : _c, lastPath = _a[5];
             var path = '';
             var projectId = lastPath;
             var split = projectId.split('/');
@@ -525,12 +525,17 @@ var Sentry = (function (exports) {
                     projectId = projectMatch[0];
                 }
             }
-            this._fromComponents({ host: host, pass: pass, path: path, projectId: projectId, port: port, protocol: protocol, user: user });
+            this._fromComponents({ host: host, pass: pass, path: path, projectId: projectId, port: port, protocol: protocol, publicKey: publicKey });
         };
         /** Maps Dsn components into this instance. */
         Dsn.prototype._fromComponents = function (components) {
+            // TODO this is for backwards compatibility, and can be removed in a future version
+            if ('user' in components && !('publicKey' in components)) {
+                components.publicKey = components.user;
+            }
+            this.user = components.publicKey || '';
             this.protocol = components.protocol;
-            this.user = components.user;
+            this.publicKey = components.publicKey || '';
             this.pass = components.pass || '';
             this.host = components.host;
             this.port = components.port || '';
@@ -540,7 +545,7 @@ var Sentry = (function (exports) {
         /** Validates this Dsn and throws on error. */
         Dsn.prototype._validate = function () {
             var _this = this;
-            ['protocol', 'user', 'host', 'projectId'].forEach(function (component) {
+            ['protocol', 'publicKey', 'host', 'projectId'].forEach(function (component) {
                 if (!_this[component]) {
                     throw new SentryError(ERROR_MESSAGE + ": " + component + " missing");
                 }
@@ -557,6 +562,333 @@ var Sentry = (function (exports) {
         };
         return Dsn;
     }());
+
+    /**
+     * Checks whether we're in the Node.js or Browser environment
+     *
+     * @returns Answer to given question
+     */
+    function isNodeEnv() {
+        return Object.prototype.toString.call(typeof process !== 'undefined' ? process : 0) === '[object process]';
+    }
+    /**
+     * Requires a module which is protected against bundler minification.
+     *
+     * @param request The module path to resolve
+     */
+    // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types, @typescript-eslint/no-explicit-any
+    function dynamicRequire(mod, request) {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+        return mod.require(request);
+    }
+
+    /**
+     * Truncates given string to the maximum characters count
+     *
+     * @param str An object that contains serializable values
+     * @param max Maximum number of characters in truncated string (0 = unlimited)
+     * @returns string Encoded
+     */
+    function truncate(str, max) {
+        if (max === void 0) { max = 0; }
+        if (typeof str !== 'string' || max === 0) {
+            return str;
+        }
+        return str.length <= max ? str : str.substr(0, max) + "...";
+    }
+    /**
+     * Join values in array
+     * @param input array of values to be joined together
+     * @param delimiter string to be placed in-between values
+     * @returns Joined values
+     */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    function safeJoin(input, delimiter) {
+        if (!Array.isArray(input)) {
+            return '';
+        }
+        var output = [];
+        // eslint-disable-next-line @typescript-eslint/prefer-for-of
+        for (var i = 0; i < input.length; i++) {
+            var value = input[i];
+            try {
+                output.push(String(value));
+            }
+            catch (e) {
+                output.push('[value cannot be serialized]');
+            }
+        }
+        return output.join(delimiter);
+    }
+    /**
+     * Checks if the value matches a regex or includes the string
+     * @param value The string value to be checked against
+     * @param pattern Either a regex or a string that must be contained in value
+     */
+    function isMatchingPattern(value, pattern) {
+        if (!isString(value)) {
+            return false;
+        }
+        if (isRegExp(pattern)) {
+            return pattern.test(value);
+        }
+        if (typeof pattern === 'string') {
+            return value.indexOf(pattern) !== -1;
+        }
+        return false;
+    }
+
+    var fallbackGlobalObject = {};
+    /**
+     * Safely get global scope object
+     *
+     * @returns Global scope object
+     */
+    function getGlobalObject() {
+        return (isNodeEnv()
+            ? global
+            : typeof window !== 'undefined'
+                ? window
+                : typeof self !== 'undefined'
+                    ? self
+                    : fallbackGlobalObject);
+    }
+    /**
+     * UUID4 generator
+     *
+     * @returns string Generated UUID4.
+     */
+    function uuid4() {
+        var global = getGlobalObject();
+        var crypto = global.crypto || global.msCrypto;
+        if (!(crypto === void 0) && crypto.getRandomValues) {
+            // Use window.crypto API if available
+            var arr = new Uint16Array(8);
+            crypto.getRandomValues(arr);
+            // set 4 in byte 7
+            // eslint-disable-next-line no-bitwise
+            arr[3] = (arr[3] & 0xfff) | 0x4000;
+            // set 2 most significant bits of byte 9 to '10'
+            // eslint-disable-next-line no-bitwise
+            arr[4] = (arr[4] & 0x3fff) | 0x8000;
+            var pad = function (num) {
+                var v = num.toString(16);
+                while (v.length < 4) {
+                    v = "0" + v;
+                }
+                return v;
+            };
+            return (pad(arr[0]) + pad(arr[1]) + pad(arr[2]) + pad(arr[3]) + pad(arr[4]) + pad(arr[5]) + pad(arr[6]) + pad(arr[7]));
+        }
+        // http://stackoverflow.com/questions/105034/how-to-create-a-guid-uuid-in-javascript/2117523#2117523
+        return 'xxxxxxxxxxxx4xxxyxxxxxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+            // eslint-disable-next-line no-bitwise
+            var r = (Math.random() * 16) | 0;
+            // eslint-disable-next-line no-bitwise
+            var v = c === 'x' ? r : (r & 0x3) | 0x8;
+            return v.toString(16);
+        });
+    }
+    /**
+     * Parses string form of URL into an object
+     * // borrowed from https://tools.ietf.org/html/rfc3986#appendix-B
+     * // intentionally using regex and not <a/> href parsing trick because React Native and other
+     * // environments where DOM might not be available
+     * @returns parsed URL object
+     */
+    function parseUrl(url) {
+        if (!url) {
+            return {};
+        }
+        var match = url.match(/^(([^:/?#]+):)?(\/\/([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?$/);
+        if (!match) {
+            return {};
+        }
+        // coerce to undefined values to empty string so we don't get 'undefined'
+        var query = match[6] || '';
+        var fragment = match[8] || '';
+        return {
+            host: match[4],
+            path: match[5],
+            protocol: match[2],
+            relative: match[5] + query + fragment,
+        };
+    }
+    /**
+     * Extracts either message or type+value from an event that can be used for user-facing logs
+     * @returns event's description
+     */
+    function getEventDescription(event) {
+        if (event.message) {
+            return event.message;
+        }
+        if (event.exception && event.exception.values && event.exception.values[0]) {
+            var exception = event.exception.values[0];
+            if (exception.type && exception.value) {
+                return exception.type + ": " + exception.value;
+            }
+            return exception.type || exception.value || event.event_id || '<unknown>';
+        }
+        return event.event_id || '<unknown>';
+    }
+    /** JSDoc */
+    function consoleSandbox(callback) {
+        var global = getGlobalObject();
+        var levels = ['debug', 'info', 'warn', 'error', 'log', 'assert'];
+        if (!('console' in global)) {
+            return callback();
+        }
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+        var originalConsole = global.console;
+        var wrappedLevels = {};
+        // Restore all wrapped console methods
+        levels.forEach(function (level) {
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+            if (level in global.console && originalConsole[level].__sentry_original__) {
+                wrappedLevels[level] = originalConsole[level];
+                originalConsole[level] = originalConsole[level].__sentry_original__;
+            }
+        });
+        // Perform callback manipulations
+        var result = callback();
+        // Revert restoration to wrapped state
+        Object.keys(wrappedLevels).forEach(function (level) {
+            originalConsole[level] = wrappedLevels[level];
+        });
+        return result;
+    }
+    /**
+     * Adds exception values, type and value to an synthetic Exception.
+     * @param event The event to modify.
+     * @param value Value of the exception.
+     * @param type Type of the exception.
+     * @hidden
+     */
+    function addExceptionTypeValue(event, value, type) {
+        event.exception = event.exception || {};
+        event.exception.values = event.exception.values || [];
+        event.exception.values[0] = event.exception.values[0] || {};
+        event.exception.values[0].value = event.exception.values[0].value || value || '';
+        event.exception.values[0].type = event.exception.values[0].type || type || 'Error';
+    }
+    /**
+     * Adds exception mechanism to a given event.
+     * @param event The event to modify.
+     * @param mechanism Mechanism of the mechanism.
+     * @hidden
+     */
+    function addExceptionMechanism(event, mechanism) {
+        if (mechanism === void 0) { mechanism = {}; }
+        // TODO: Use real type with `keyof Mechanism` thingy and maybe make it better?
+        try {
+            // @ts-ignore Type 'Mechanism | {}' is not assignable to type 'Mechanism | undefined'
+            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+            event.exception.values[0].mechanism = event.exception.values[0].mechanism || {};
+            Object.keys(mechanism).forEach(function (key) {
+                // @ts-ignore Mechanism has no index signature
+                // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+                event.exception.values[0].mechanism[key] = mechanism[key];
+            });
+        }
+        catch (_oO) {
+            // no-empty
+        }
+    }
+    /**
+     * A safe form of location.href
+     */
+    function getLocationHref() {
+        try {
+            return document.location.href;
+        }
+        catch (oO) {
+            return '';
+        }
+    }
+    var defaultRetryAfter = 60 * 1000; // 60 seconds
+    /**
+     * Extracts Retry-After value from the request header or returns default value
+     * @param now current unix timestamp
+     * @param header string representation of 'Retry-After' header
+     */
+    function parseRetryAfterHeader(now, header) {
+        if (!header) {
+            return defaultRetryAfter;
+        }
+        var headerDelay = parseInt("" + header, 10);
+        if (!isNaN(headerDelay)) {
+            return headerDelay * 1000;
+        }
+        var headerDate = Date.parse("" + header);
+        if (!isNaN(headerDate)) {
+            return headerDate - now;
+        }
+        return defaultRetryAfter;
+    }
+
+    /* eslint-disable @typescript-eslint/no-explicit-any */
+    // TODO: Implement different loggers for different environments
+    var global$1 = getGlobalObject();
+    /** Prefix for logging strings */
+    var PREFIX = 'Sentry Logger ';
+    /** JSDoc */
+    var Logger = /** @class */ (function () {
+        /** JSDoc */
+        function Logger() {
+            this._enabled = false;
+        }
+        /** JSDoc */
+        Logger.prototype.disable = function () {
+            this._enabled = false;
+        };
+        /** JSDoc */
+        Logger.prototype.enable = function () {
+            this._enabled = true;
+        };
+        /** JSDoc */
+        Logger.prototype.log = function () {
+            var args = [];
+            for (var _i = 0; _i < arguments.length; _i++) {
+                args[_i] = arguments[_i];
+            }
+            if (!this._enabled) {
+                return;
+            }
+            consoleSandbox(function () {
+                global$1.console.log(PREFIX + "[Log]: " + args.join(' '));
+            });
+        };
+        /** JSDoc */
+        Logger.prototype.warn = function () {
+            var args = [];
+            for (var _i = 0; _i < arguments.length; _i++) {
+                args[_i] = arguments[_i];
+            }
+            if (!this._enabled) {
+                return;
+            }
+            consoleSandbox(function () {
+                global$1.console.warn(PREFIX + "[Warn]: " + args.join(' '));
+            });
+        };
+        /** JSDoc */
+        Logger.prototype.error = function () {
+            var args = [];
+            for (var _i = 0; _i < arguments.length; _i++) {
+                args[_i] = arguments[_i];
+            }
+            if (!this._enabled) {
+                return;
+            }
+            consoleSandbox(function () {
+                global$1.console.error(PREFIX + "[Error]: " + args.join(' '));
+            });
+        };
+        return Logger;
+    }());
+    // Ensure we only have a single logger instance, even if multiple versions of @sentry/utils are being used
+    global$1.__SENTRY__ = global$1.__SENTRY__ || {};
+    var logger = global$1.__SENTRY__.logger || (global$1.__SENTRY__.logger = new Logger());
 
     /* eslint-disable @typescript-eslint/no-unsafe-member-access */
     /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -630,75 +962,20 @@ var Sentry = (function (exports) {
     }
 
     /**
-     * Truncates given string to the maximum characters count
-     *
-     * @param str An object that contains serializable values
-     * @param max Maximum number of characters in truncated string
-     * @returns string Encoded
-     */
-    function truncate(str, max) {
-        if (max === void 0) { max = 0; }
-        if (typeof str !== 'string' || max === 0) {
-            return str;
-        }
-        return str.length <= max ? str : str.substr(0, max) + "...";
-    }
-    /**
-     * Join values in array
-     * @param input array of values to be joined together
-     * @param delimiter string to be placed in-between values
-     * @returns Joined values
-     */
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    function safeJoin(input, delimiter) {
-        if (!Array.isArray(input)) {
-            return '';
-        }
-        var output = [];
-        // eslint-disable-next-line @typescript-eslint/prefer-for-of
-        for (var i = 0; i < input.length; i++) {
-            var value = input[i];
-            try {
-                output.push(String(value));
-            }
-            catch (e) {
-                output.push('[value cannot be serialized]');
-            }
-        }
-        return output.join(delimiter);
-    }
-    /**
-     * Checks if the value matches a regex or includes the string
-     * @param value The string value to be checked against
-     * @param pattern Either a regex or a string that must be contained in value
-     */
-    function isMatchingPattern(value, pattern) {
-        if (!isString(value)) {
-            return false;
-        }
-        if (isRegExp(pattern)) {
-            return pattern.test(value);
-        }
-        if (typeof pattern === 'string') {
-            return value.indexOf(pattern) !== -1;
-        }
-        return false;
-    }
-
-    /**
      * Wrap a given object method with a higher-order function
      *
      * @param source An object that contains a method to be wrapped.
      * @param name A name of method to be wrapped.
-     * @param replacement A function that should be used to wrap a given method.
+     * @param replacementFactory A function that should be used to wrap a given method, returning the wrapped method which
+     * will be substituted in for `source[name]`.
      * @returns void
      */
-    function fill(source, name, replacement) {
+    function fill(source, name, replacementFactory) {
         if (!(name in source)) {
             return;
         }
         var original = source[name];
-        var wrapped = replacement(original);
+        var wrapped = replacementFactory(original);
         // Make sure it's a function first, as we need to attach an empty prototype for `defineProperties` to work
         // otherwise it'll throw "TypeError: Object.defineProperties called on non-object"
         if (typeof wrapped === 'function') {
@@ -730,10 +1007,10 @@ var Sentry = (function (exports) {
             .join('&');
     }
     /**
-     * Transforms any object into an object literal with all it's attributes
+     * Transforms any object into an object literal with all its attributes
      * attached to it.
      *
-     * @param value Initial source that we have to transform in order to be usable by the serializer
+     * @param value Initial source that we have to transform in order for it to be usable by the serializer
      */
     function getWalkSource(value) {
         if (isError(value)) {
@@ -1006,277 +1283,6 @@ var Sentry = (function (exports) {
         }
         return val;
     }
-
-    /**
-     * Checks whether we're in the Node.js or Browser environment
-     *
-     * @returns Answer to given question
-     */
-    function isNodeEnv() {
-        return Object.prototype.toString.call(typeof process !== 'undefined' ? process : 0) === '[object process]';
-    }
-    /**
-     * Requires a module which is protected against bundler minification.
-     *
-     * @param request The module path to resolve
-     */
-    // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-    function dynamicRequire(mod, request) {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-        return mod.require(request);
-    }
-
-    var fallbackGlobalObject = {};
-    /**
-     * Safely get global scope object
-     *
-     * @returns Global scope object
-     */
-    function getGlobalObject() {
-        return (isNodeEnv()
-            ? global
-            : typeof window !== 'undefined'
-                ? window
-                : typeof self !== 'undefined'
-                    ? self
-                    : fallbackGlobalObject);
-    }
-    /**
-     * UUID4 generator
-     *
-     * @returns string Generated UUID4.
-     */
-    function uuid4() {
-        var global = getGlobalObject();
-        var crypto = global.crypto || global.msCrypto;
-        if (!(crypto === void 0) && crypto.getRandomValues) {
-            // Use window.crypto API if available
-            var arr = new Uint16Array(8);
-            crypto.getRandomValues(arr);
-            // set 4 in byte 7
-            // eslint-disable-next-line no-bitwise
-            arr[3] = (arr[3] & 0xfff) | 0x4000;
-            // set 2 most significant bits of byte 9 to '10'
-            // eslint-disable-next-line no-bitwise
-            arr[4] = (arr[4] & 0x3fff) | 0x8000;
-            var pad = function (num) {
-                var v = num.toString(16);
-                while (v.length < 4) {
-                    v = "0" + v;
-                }
-                return v;
-            };
-            return (pad(arr[0]) + pad(arr[1]) + pad(arr[2]) + pad(arr[3]) + pad(arr[4]) + pad(arr[5]) + pad(arr[6]) + pad(arr[7]));
-        }
-        // http://stackoverflow.com/questions/105034/how-to-create-a-guid-uuid-in-javascript/2117523#2117523
-        return 'xxxxxxxxxxxx4xxxyxxxxxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-            // eslint-disable-next-line no-bitwise
-            var r = (Math.random() * 16) | 0;
-            // eslint-disable-next-line no-bitwise
-            var v = c === 'x' ? r : (r & 0x3) | 0x8;
-            return v.toString(16);
-        });
-    }
-    /**
-     * Parses string form of URL into an object
-     * // borrowed from https://tools.ietf.org/html/rfc3986#appendix-B
-     * // intentionally using regex and not <a/> href parsing trick because React Native and other
-     * // environments where DOM might not be available
-     * @returns parsed URL object
-     */
-    function parseUrl(url) {
-        if (!url) {
-            return {};
-        }
-        var match = url.match(/^(([^:/?#]+):)?(\/\/([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?$/);
-        if (!match) {
-            return {};
-        }
-        // coerce to undefined values to empty string so we don't get 'undefined'
-        var query = match[6] || '';
-        var fragment = match[8] || '';
-        return {
-            host: match[4],
-            path: match[5],
-            protocol: match[2],
-            relative: match[5] + query + fragment,
-        };
-    }
-    /**
-     * Extracts either message or type+value from an event that can be used for user-facing logs
-     * @returns event's description
-     */
-    function getEventDescription(event) {
-        if (event.message) {
-            return event.message;
-        }
-        if (event.exception && event.exception.values && event.exception.values[0]) {
-            var exception = event.exception.values[0];
-            if (exception.type && exception.value) {
-                return exception.type + ": " + exception.value;
-            }
-            return exception.type || exception.value || event.event_id || '<unknown>';
-        }
-        return event.event_id || '<unknown>';
-    }
-    /** JSDoc */
-    function consoleSandbox(callback) {
-        var global = getGlobalObject();
-        var levels = ['debug', 'info', 'warn', 'error', 'log', 'assert'];
-        if (!('console' in global)) {
-            return callback();
-        }
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-        var originalConsole = global.console;
-        var wrappedLevels = {};
-        // Restore all wrapped console methods
-        levels.forEach(function (level) {
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-            if (level in global.console && originalConsole[level].__sentry_original__) {
-                wrappedLevels[level] = originalConsole[level];
-                originalConsole[level] = originalConsole[level].__sentry_original__;
-            }
-        });
-        // Perform callback manipulations
-        var result = callback();
-        // Revert restoration to wrapped state
-        Object.keys(wrappedLevels).forEach(function (level) {
-            originalConsole[level] = wrappedLevels[level];
-        });
-        return result;
-    }
-    /**
-     * Adds exception values, type and value to an synthetic Exception.
-     * @param event The event to modify.
-     * @param value Value of the exception.
-     * @param type Type of the exception.
-     * @hidden
-     */
-    function addExceptionTypeValue(event, value, type) {
-        event.exception = event.exception || {};
-        event.exception.values = event.exception.values || [];
-        event.exception.values[0] = event.exception.values[0] || {};
-        event.exception.values[0].value = event.exception.values[0].value || value || '';
-        event.exception.values[0].type = event.exception.values[0].type || type || 'Error';
-    }
-    /**
-     * Adds exception mechanism to a given event.
-     * @param event The event to modify.
-     * @param mechanism Mechanism of the mechanism.
-     * @hidden
-     */
-    function addExceptionMechanism(event, mechanism) {
-        if (mechanism === void 0) { mechanism = {}; }
-        // TODO: Use real type with `keyof Mechanism` thingy and maybe make it better?
-        try {
-            // @ts-ignore Type 'Mechanism | {}' is not assignable to type 'Mechanism | undefined'
-            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-            event.exception.values[0].mechanism = event.exception.values[0].mechanism || {};
-            Object.keys(mechanism).forEach(function (key) {
-                // @ts-ignore Mechanism has no index signature
-                // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-                event.exception.values[0].mechanism[key] = mechanism[key];
-            });
-        }
-        catch (_oO) {
-            // no-empty
-        }
-    }
-    /**
-     * A safe form of location.href
-     */
-    function getLocationHref() {
-        try {
-            return document.location.href;
-        }
-        catch (oO) {
-            return '';
-        }
-    }
-    var defaultRetryAfter = 60 * 1000; // 60 seconds
-    /**
-     * Extracts Retry-After value from the request header or returns default value
-     * @param now current unix timestamp
-     * @param header string representation of 'Retry-After' header
-     */
-    function parseRetryAfterHeader(now, header) {
-        if (!header) {
-            return defaultRetryAfter;
-        }
-        var headerDelay = parseInt("" + header, 10);
-        if (!isNaN(headerDelay)) {
-            return headerDelay * 1000;
-        }
-        var headerDate = Date.parse("" + header);
-        if (!isNaN(headerDate)) {
-            return headerDate - now;
-        }
-        return defaultRetryAfter;
-    }
-
-    /* eslint-disable @typescript-eslint/no-explicit-any */
-    // TODO: Implement different loggers for different environments
-    var global$1 = getGlobalObject();
-    /** Prefix for logging strings */
-    var PREFIX = 'Sentry Logger ';
-    /** JSDoc */
-    var Logger = /** @class */ (function () {
-        /** JSDoc */
-        function Logger() {
-            this._enabled = false;
-        }
-        /** JSDoc */
-        Logger.prototype.disable = function () {
-            this._enabled = false;
-        };
-        /** JSDoc */
-        Logger.prototype.enable = function () {
-            this._enabled = true;
-        };
-        /** JSDoc */
-        Logger.prototype.log = function () {
-            var args = [];
-            for (var _i = 0; _i < arguments.length; _i++) {
-                args[_i] = arguments[_i];
-            }
-            if (!this._enabled) {
-                return;
-            }
-            consoleSandbox(function () {
-                global$1.console.log(PREFIX + "[Log]: " + args.join(' '));
-            });
-        };
-        /** JSDoc */
-        Logger.prototype.warn = function () {
-            var args = [];
-            for (var _i = 0; _i < arguments.length; _i++) {
-                args[_i] = arguments[_i];
-            }
-            if (!this._enabled) {
-                return;
-            }
-            consoleSandbox(function () {
-                global$1.console.warn(PREFIX + "[Warn]: " + args.join(' '));
-            });
-        };
-        /** JSDoc */
-        Logger.prototype.error = function () {
-            var args = [];
-            for (var _i = 0; _i < arguments.length; _i++) {
-                args[_i] = arguments[_i];
-            }
-            if (!this._enabled) {
-                return;
-            }
-            consoleSandbox(function () {
-                global$1.console.error(PREFIX + "[Error]: " + args.join(' '));
-            });
-        };
-        return Logger;
-    }());
-    // Ensure we only have a single logger instance, even if multiple versions of @sentry/utils are being used
-    global$1.__SENTRY__ = global$1.__SENTRY__ || {};
-    var logger = global$1.__SENTRY__.logger || (global$1.__SENTRY__.logger = new Logger());
 
     /**
      * Tells whether current environment supports Fetch API
@@ -1698,144 +1704,188 @@ var Sentry = (function (exports) {
         fill(global$2.history, 'pushState', historyReplacementFunction);
         fill(global$2.history, 'replaceState', historyReplacementFunction);
     }
+    var debounceDuration = 1000;
+    var debounceTimerID;
+    var lastCapturedEvent;
+    /**
+     * Decide whether the current event should finish the debounce of previously captured one.
+     * @param previous previously captured event
+     * @param current event to be captured
+     */
+    function shouldShortcircuitPreviousDebounce(previous, current) {
+        // If there was no previous event, it should always be swapped for the new one.
+        if (!previous) {
+            return true;
+        }
+        // If both events have different type, then user definitely performed two separate actions. e.g. click + keypress.
+        if (previous.type !== current.type) {
+            return true;
+        }
+        try {
+            // If both events have the same type, it's still possible that actions were performed on different targets.
+            // e.g. 2 clicks on different buttons.
+            if (previous.target !== current.target) {
+                return true;
+            }
+        }
+        catch (e) {
+            // just accessing `target` property can throw an exception in some rare circumstances
+            // see: https://github.com/getsentry/sentry-javascript/issues/838
+        }
+        // If both events have the same type _and_ same `target` (an element which triggered an event, _not necessarily_
+        // to which an event listener was attached), we treat them as the same action, as we want to capture
+        // only one breadcrumb. e.g. multiple clicks on the same button, or typing inside a user input box.
+        return false;
+    }
+    /**
+     * Decide whether an event should be captured.
+     * @param event event to be captured
+     */
+    function shouldSkipDOMEvent(event) {
+        // We are only interested in filtering `keypress` events for now.
+        if (event.type !== 'keypress') {
+            return false;
+        }
+        try {
+            var target = event.target;
+            if (!target || !target.tagName) {
+                return true;
+            }
+            // Only consider keypress events on actual input elements. This will disregard keypresses targeting body
+            // e.g.tabbing through elements, hotkeys, etc.
+            if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+                return false;
+            }
+        }
+        catch (e) {
+            // just accessing `target` property can throw an exception in some rare circumstances
+            // see: https://github.com/getsentry/sentry-javascript/issues/838
+        }
+        return true;
+    }
+    /**
+     * Wraps addEventListener to capture UI breadcrumbs
+     * @param handler function that will be triggered
+     * @param globalListener indicates whether event was captured by the global event listener
+     * @returns wrapped breadcrumb events handler
+     * @hidden
+     */
+    function makeDOMEventHandler(handler, globalListener) {
+        if (globalListener === void 0) { globalListener = false; }
+        return function (event) {
+            // It's possible this handler might trigger multiple times for the same
+            // event (e.g. event propagation through node ancestors).
+            // Ignore if we've already captured that event.
+            if (!event || lastCapturedEvent === event) {
+                return;
+            }
+            // We always want to skip _some_ events.
+            if (shouldSkipDOMEvent(event)) {
+                return;
+            }
+            var name = event.type === 'keypress' ? 'input' : event.type;
+            // If there is no debounce timer, it means that we can safely capture the new event and store it for future comparisons.
+            if (debounceTimerID === undefined) {
+                handler({
+                    event: event,
+                    name: name,
+                    global: globalListener,
+                });
+                lastCapturedEvent = event;
+            }
+            // If there is a debounce awaiting, see if the new event is different enough to treat it as a unique one.
+            // If that's the case, emit the previous event and store locally the newly-captured DOM event.
+            else if (shouldShortcircuitPreviousDebounce(lastCapturedEvent, event)) {
+                handler({
+                    event: event,
+                    name: name,
+                    global: globalListener,
+                });
+                lastCapturedEvent = event;
+            }
+            // Start a new debounce timer that will prevent us from capturing multiple events that should be grouped together.
+            clearTimeout(debounceTimerID);
+            debounceTimerID = global$2.setTimeout(function () {
+                debounceTimerID = undefined;
+            }, debounceDuration);
+        };
+    }
     /** JSDoc */
     function instrumentDOM() {
         if (!('document' in global$2)) {
             return;
         }
-        // Capture breadcrumbs from any click that is unhandled / bubbled up all the way
-        // to the document. Do this before we instrument addEventListener.
-        global$2.document.addEventListener('click', domEventHandler('click', triggerHandlers.bind(null, 'dom')), false);
-        global$2.document.addEventListener('keypress', keypressEventHandler(triggerHandlers.bind(null, 'dom')), false);
-        // After hooking into document bubbled up click and keypresses events, we also hook into user handled click & keypresses.
+        // Make it so that any click or keypress that is unhandled / bubbled up all the way to the document triggers our dom
+        // handlers. (Normally we have only one, which captures a breadcrumb for each click or keypress.) Do this before
+        // we instrument `addEventListener` so that we don't end up attaching this handler twice.
+        var triggerDOMHandler = triggerHandlers.bind(null, 'dom');
+        var globalDOMEventHandler = makeDOMEventHandler(triggerDOMHandler, true);
+        global$2.document.addEventListener('click', globalDOMEventHandler, false);
+        global$2.document.addEventListener('keypress', globalDOMEventHandler, false);
+        // After hooking into click and keypress events bubbled up to `document`, we also hook into user-handled
+        // clicks & keypresses, by adding an event listener of our own to any element to which they add a listener. That
+        // way, whenever one of their handlers is triggered, ours will be, too. (This is needed because their handler
+        // could potentially prevent the event from bubbling up to our global listeners. This way, our handler are still
+        // guaranteed to fire at least once.)
         ['EventTarget', 'Node'].forEach(function (target) {
-            /* eslint-disable @typescript-eslint/no-unsafe-member-access */
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
             var proto = global$2[target] && global$2[target].prototype;
-            // eslint-disable-next-line no-prototype-builtins
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, no-prototype-builtins
             if (!proto || !proto.hasOwnProperty || !proto.hasOwnProperty('addEventListener')) {
                 return;
             }
-            /* eslint-enable @typescript-eslint/no-unsafe-member-access */
-            fill(proto, 'addEventListener', function (original) {
-                return function (eventName, fn, options) {
-                    if (fn && fn.handleEvent) {
-                        if (eventName === 'click') {
-                            fill(fn, 'handleEvent', function (innerOriginal) {
-                                return function (event) {
-                                    domEventHandler('click', triggerHandlers.bind(null, 'dom'))(event);
-                                    return innerOriginal.call(this, event);
-                                };
-                            });
+            fill(proto, 'addEventListener', function (originalAddEventListener) {
+                return function (type, listener, options) {
+                    if (type === 'click' || type == 'keypress') {
+                        try {
+                            var el = this;
+                            var handlers_1 = (el.__sentry_instrumentation_handlers__ = el.__sentry_instrumentation_handlers__ || {});
+                            var handlerForType = (handlers_1[type] = handlers_1[type] || { refCount: 0 });
+                            if (!handlerForType.handler) {
+                                var handler = makeDOMEventHandler(triggerDOMHandler);
+                                handlerForType.handler = handler;
+                                originalAddEventListener.call(this, type, handler, options);
+                            }
+                            handlerForType.refCount += 1;
                         }
-                        if (eventName === 'keypress') {
-                            fill(fn, 'handleEvent', function (innerOriginal) {
-                                return function (event) {
-                                    keypressEventHandler(triggerHandlers.bind(null, 'dom'))(event);
-                                    return innerOriginal.call(this, event);
-                                };
-                            });
+                        catch (e) {
+                            // Accessing dom properties is always fragile.
+                            // Also allows us to skip `addEventListenrs` calls with no proper `this` context.
                         }
                     }
-                    else {
-                        if (eventName === 'click') {
-                            domEventHandler('click', triggerHandlers.bind(null, 'dom'), true)(this);
-                        }
-                        if (eventName === 'keypress') {
-                            keypressEventHandler(triggerHandlers.bind(null, 'dom'))(this);
-                        }
-                    }
-                    return original.call(this, eventName, fn, options);
+                    return originalAddEventListener.call(this, type, listener, options);
                 };
             });
-            fill(proto, 'removeEventListener', function (original) {
-                return function (eventName, fn, options) {
-                    try {
-                        original.call(this, eventName, fn.__sentry_wrapped__, options);
+            fill(proto, 'removeEventListener', function (originalRemoveEventListener) {
+                return function (type, listener, options) {
+                    if (type === 'click' || type == 'keypress') {
+                        try {
+                            var el = this;
+                            var handlers_2 = el.__sentry_instrumentation_handlers__ || {};
+                            var handlerForType = handlers_2[type];
+                            if (handlerForType) {
+                                handlerForType.refCount -= 1;
+                                // If there are no longer any custom handlers of the current type on this element, we can remove ours, too.
+                                if (handlerForType.refCount <= 0) {
+                                    originalRemoveEventListener.call(this, type, handlerForType.handler, options);
+                                    handlerForType.handler = undefined;
+                                    delete handlers_2[type]; // eslint-disable-line @typescript-eslint/no-dynamic-delete
+                                }
+                                // If there are no longer any custom handlers of any type on this element, cleanup everything.
+                                if (Object.keys(handlers_2).length === 0) {
+                                    delete el.__sentry_instrumentation_handlers__;
+                                }
+                            }
+                        }
+                        catch (e) {
+                            // Accessing dom properties is always fragile.
+                            // Also allows us to skip `addEventListenrs` calls with no proper `this` context.
+                        }
                     }
-                    catch (e) {
-                        // ignore, accessing __sentry_wrapped__ will throw in some Selenium environments
-                    }
-                    return original.call(this, eventName, fn, options);
+                    return originalRemoveEventListener.call(this, type, listener, options);
                 };
             });
         });
-    }
-    var debounceDuration = 1000;
-    var debounceTimer = 0;
-    var keypressTimeout;
-    var lastCapturedEvent;
-    /**
-     * Wraps addEventListener to capture UI breadcrumbs
-     * @param name the event name (e.g. "click")
-     * @param handler function that will be triggered
-     * @param debounce decides whether it should wait till another event loop
-     * @returns wrapped breadcrumb events handler
-     * @hidden
-     */
-    function domEventHandler(name, handler, debounce) {
-        if (debounce === void 0) { debounce = false; }
-        return function (event) {
-            // reset keypress timeout; e.g. triggering a 'click' after
-            // a 'keypress' will reset the keypress debounce so that a new
-            // set of keypresses can be recorded
-            keypressTimeout = undefined;
-            // It's possible this handler might trigger multiple times for the same
-            // event (e.g. event propagation through node ancestors). Ignore if we've
-            // already captured the event.
-            if (!event || lastCapturedEvent === event) {
-                return;
-            }
-            lastCapturedEvent = event;
-            if (debounceTimer) {
-                clearTimeout(debounceTimer);
-            }
-            if (debounce) {
-                debounceTimer = setTimeout(function () {
-                    handler({ event: event, name: name });
-                });
-            }
-            else {
-                handler({ event: event, name: name });
-            }
-        };
-    }
-    /**
-     * Wraps addEventListener to capture keypress UI events
-     * @param handler function that will be triggered
-     * @returns wrapped keypress events handler
-     * @hidden
-     */
-    function keypressEventHandler(handler) {
-        // TODO: if somehow user switches keypress target before
-        //       debounce timeout is triggered, we will only capture
-        //       a single breadcrumb from the FIRST target (acceptable?)
-        return function (event) {
-            var target;
-            try {
-                target = event.target;
-            }
-            catch (e) {
-                // just accessing event properties can throw an exception in some rare circumstances
-                // see: https://github.com/getsentry/raven-js/issues/838
-                return;
-            }
-            var tagName = target && target.tagName;
-            // only consider keypress events on actual input elements
-            // this will disregard keypresses targeting body (e.g. tabbing
-            // through elements, hotkeys, etc)
-            if (!tagName || (tagName !== 'INPUT' && tagName !== 'TEXTAREA' && !target.isContentEditable)) {
-                return;
-            }
-            // record first keypress in a series, but ignore subsequent
-            // keypresses until debounce clears
-            if (!keypressTimeout) {
-                domEventHandler('input', handler)(event);
-            }
-            clearTimeout(keypressTimeout);
-            keypressTimeout = setTimeout(function () {
-                keypressTimeout = undefined;
-            }, debounceDuration);
-        };
     }
     var _oldOnErrorHandler = null;
     /** JSDoc */
@@ -2675,6 +2725,7 @@ var Sentry = (function (exports) {
             this.started = Date.now();
             this.duration = 0;
             this.status = SessionStatus.Ok;
+            this.init = true;
             if (context) {
                 this.update(context);
             }
@@ -2695,6 +2746,9 @@ var Sentry = (function (exports) {
             if (context.sid) {
                 // Good enough uuid validation. — Kamil
                 this.sid = context.sid.length === 32 ? context.sid : uuid4();
+            }
+            if (context.init !== undefined) {
+                this.init = context.init;
             }
             if (context.did) {
                 this.did = "" + context.did;
@@ -2743,7 +2797,7 @@ var Sentry = (function (exports) {
         Session.prototype.toJSON = function () {
             return dropUndefinedKeys({
                 sid: "" + this.sid,
-                init: true,
+                init: this.init,
                 started: new Date(this.started).toISOString(),
                 timestamp: new Date(this.timestamp).toISOString(),
                 status: this.status,
@@ -3060,32 +3114,57 @@ var Sentry = (function (exports) {
         /**
          * @inheritDoc
          */
-        Hub.prototype.startSession = function (context) {
-            // End existing session if there's one
-            this.endSession();
-            var _a = this.getStackTop(), scope = _a.scope, client = _a.client;
-            var _b = (client && client.getOptions()) || {}, release = _b.release, environment = _b.environment;
-            var session = new Session(__assign(__assign({ release: release,
-                environment: environment }, (scope && { user: scope.getUser() })), context));
-            if (scope) {
-                scope.setSession(session);
+        Hub.prototype.captureSession = function (endSession) {
+            if (endSession === void 0) { endSession = false; }
+            // both send the update and pull the session from the scope
+            if (endSession) {
+                return this.endSession();
             }
-            return session;
+            // only send the update
+            this._sendSessionUpdate();
         };
         /**
          * @inheritDoc
          */
         Hub.prototype.endSession = function () {
+            var _a, _b, _c, _d, _e;
+            (_c = (_b = (_a = this.getStackTop()) === null || _a === void 0 ? void 0 : _a.scope) === null || _b === void 0 ? void 0 : _b.getSession()) === null || _c === void 0 ? void 0 : _c.close();
+            this._sendSessionUpdate();
+            // the session is over; take it off of the scope
+            (_e = (_d = this.getStackTop()) === null || _d === void 0 ? void 0 : _d.scope) === null || _e === void 0 ? void 0 : _e.setSession();
+        };
+        /**
+         * @inheritDoc
+         */
+        Hub.prototype.startSession = function (context) {
+            var _a = this.getStackTop(), scope = _a.scope, client = _a.client;
+            var _b = (client && client.getOptions()) || {}, release = _b.release, environment = _b.environment;
+            var session = new Session(__assign(__assign({ release: release,
+                environment: environment }, (scope && { user: scope.getUser() })), context));
+            if (scope) {
+                // End existing session if there's one
+                var currentSession = scope.getSession && scope.getSession();
+                if (currentSession && currentSession.status === SessionStatus.Ok) {
+                    currentSession.update({ status: SessionStatus.Exited });
+                }
+                this.endSession();
+                // Afterwards we set the new session on the scope
+                scope.setSession(session);
+            }
+            return session;
+        };
+        /**
+         * Sends the current Session on the scope
+         */
+        Hub.prototype._sendSessionUpdate = function () {
             var _a = this.getStackTop(), scope = _a.scope, client = _a.client;
             if (!scope)
                 return;
             var session = scope.getSession && scope.getSession();
             if (session) {
-                session.close();
                 if (client && client.captureSession) {
                     client.captureSession(session);
                 }
-                scope.setSession();
             }
         };
         /**
@@ -3168,21 +3247,13 @@ var Sentry = (function (exports) {
         return getHubFromCarrier(registry);
     }
     /**
-     * Returns the active domain, if one exists
-     *
-     * @returns The domain, or undefined if there is no active domain
-     */
-    function getActiveDomain() {
-        var sentry = getMainCarrier().__SENTRY__;
-        return sentry && sentry.extensions && sentry.extensions.domain && sentry.extensions.domain.active;
-    }
-    /**
      * Try to read the hub from an active domain, and fallback to the registry if one doesn't exist
      * @returns discovered hub
      */
     function getHubFromActiveDomain(registry) {
+        var _a, _b, _c;
         try {
-            var activeDomain = getActiveDomain();
+            var activeDomain = (_c = (_b = (_a = getMainCarrier().__SENTRY__) === null || _a === void 0 ? void 0 : _a.extensions) === null || _b === void 0 ? void 0 : _b.domain) === null || _c === void 0 ? void 0 : _c.active;
             // If there's no active domain, just return global hub
             if (!activeDomain) {
                 return getHubFromCarrier(registry);
@@ -3224,6 +3295,7 @@ var Sentry = (function (exports) {
      * This will set passed {@link Hub} on the passed object's __SENTRY__.hub attribute
      * @param carrier object
      * @param hub Hub
+     * @returns A boolean indicating success or failure
      */
     function setHubOnCarrier(carrier, hub) {
         if (!carrier)
@@ -3408,12 +3480,18 @@ var Sentry = (function (exports) {
     }
 
     var SENTRY_API_VERSION = '7';
-    /** Helper class to provide urls to different Sentry endpoints. */
+    /**
+     * Helper class to provide urls, headers and metadata that can be used to form
+     * different types of requests to Sentry endpoints.
+     * Supports both envelopes and regular event requests.
+     **/
     var API = /** @class */ (function () {
         /** Create a new instance of API */
-        function API(dsn) {
+        function API(dsn, metadata) {
+            if (metadata === void 0) { metadata = {}; }
             this.dsn = dsn;
             this._dsnObject = new Dsn(dsn);
+            this.metadata = metadata;
         }
         /** Returns the Dsn object. */
         API.prototype.getDsn = function () {
@@ -3456,10 +3534,11 @@ var Sentry = (function (exports) {
          * This is needed for node and the old /store endpoint in sentry
          */
         API.prototype.getRequestHeaders = function (clientName, clientVersion) {
+            // CHANGE THIS to use metadata but keep clientName and clientVersion compatible
             var dsn = this._dsnObject;
             var header = ["Sentry sentry_version=" + SENTRY_API_VERSION];
             header.push("sentry_client=" + clientName + "/" + clientVersion);
-            header.push("sentry_key=" + dsn.user);
+            header.push("sentry_key=" + dsn.publicKey);
             if (dsn.pass) {
                 header.push("sentry_secret=" + dsn.pass);
             }
@@ -3515,7 +3594,7 @@ var Sentry = (function (exports) {
             var auth = {
                 // We send only the minimum set of required information. See
                 // https://github.com/getsentry/sentry-javascript/issues/2572.
-                sentry_key: dsn.user,
+                sentry_key: dsn.publicKey,
                 sentry_version: SENTRY_API_VERSION,
             };
             return urlEncode(auth);
@@ -3601,7 +3680,7 @@ var Sentry = (function (exports) {
      * without a valid Dsn, the SDK will not send any events to Sentry.
      *
      * Before sending an event via the backend, it is passed through
-     * {@link BaseClient.prepareEvent} to add SDK information and scope data
+     * {@link BaseClient._prepareEvent} to add SDK information and scope data
      * (breadcrumbs and context). To add more custom information, override this
      * method and extend the resulting prepared event.
      *
@@ -3687,6 +3766,8 @@ var Sentry = (function (exports) {
             }
             else {
                 this._sendSession(session);
+                // After sending, we set init false to inidcate it's not the first occurence
+                session.update({ init: false });
             }
         };
         /**
@@ -3782,6 +3863,7 @@ var Sentry = (function (exports) {
             }
             session.update(__assign(__assign({}, (crashed && { status: SessionStatus.Crashed })), { user: user,
                 userAgent: userAgent, errors: session.errors + Number(errored || crashed) }));
+            this.captureSession(session);
         };
         /** Deliver captured session to Sentry */
         BaseClient.prototype._sendSession = function (session) {
@@ -3927,7 +4009,7 @@ var Sentry = (function (exports) {
         };
         /**
          * This function adds all used integrations to the SDK info in the event.
-         * @param sdkInfo The sdkInfo of the event that will be filled with all integrations.
+         * @param event The event that will be filled with all integrations.
          */
         BaseClient.prototype._applyIntegrationsMetadata = function (event) {
             var sdkInfo = event.sdk;
@@ -3982,7 +4064,7 @@ var Sentry = (function (exports) {
             // 0.0 === 0% events are sent
             // Sampling for transaction happens somewhere else
             if (!isTransaction && typeof sampleRate === 'number' && Math.random() > sampleRate) {
-                return SyncPromise.reject(new SentryError('This event has been sampled, will not send event.'));
+                return SyncPromise.reject(new SentryError("Discarding event because it's not included in the random sample (sampling rate = " + sampleRate + ")"));
             }
             return this._prepareEvent(event, scope, hint)
                 .then(function (prepared) {
@@ -4128,11 +4210,36 @@ var Sentry = (function (exports) {
         return BaseBackend;
     }());
 
+    /** Extract sdk info from from the API metadata */
+    function getSdkMetadataForEnvelopeHeader(api) {
+        if (!api.metadata || !api.metadata.sdk) {
+            return;
+        }
+        var _a = api.metadata.sdk, name = _a.name, version = _a.version;
+        return { name: name, version: version };
+    }
+    /**
+     * Apply SdkInfo (name, version, packages, integrations) to the corresponding event key.
+     * Merge with existing data if any.
+     **/
+    function enhanceEventWithSdkInfo(event, sdkInfo) {
+        if (!sdkInfo) {
+            return event;
+        }
+        event.sdk = event.sdk || {
+            name: sdkInfo.name,
+            version: sdkInfo.version,
+        };
+        event.sdk.name = event.sdk.name || sdkInfo.name;
+        event.sdk.version = event.sdk.version || sdkInfo.version;
+        event.sdk.integrations = __spread((event.sdk.integrations || []), (sdkInfo.integrations || []));
+        event.sdk.packages = __spread((event.sdk.packages || []), (sdkInfo.packages || []));
+        return event;
+    }
     /** Creates a SentryRequest from an event. */
     function sessionToSentryRequest(session, api) {
-        var envelopeHeaders = JSON.stringify({
-            sent_at: new Date().toISOString(),
-        });
+        var sdkInfo = getSdkMetadataForEnvelopeHeader(api);
+        var envelopeHeaders = JSON.stringify(__assign({ sent_at: new Date().toISOString() }, (sdkInfo && { sdk: sdkInfo })));
         var itemHeaders = JSON.stringify({
             type: 'session',
         });
@@ -4144,13 +4251,20 @@ var Sentry = (function (exports) {
     }
     /** Creates a SentryRequest from an event. */
     function eventToSentryRequest(event, api) {
-        // since JS has no Object.prototype.pop()
-        var _a = event.tags || {}, samplingMethod = _a.__sentry_samplingMethod, sampleRate = _a.__sentry_sampleRate, otherTags = __rest(_a, ["__sentry_samplingMethod", "__sentry_sampleRate"]);
-        event.tags = otherTags;
-        var useEnvelope = event.type === 'transaction';
+        var sdkInfo = getSdkMetadataForEnvelopeHeader(api);
+        var eventType = event.type || 'event';
+        var useEnvelope = eventType === 'transaction';
+        var _a = event.debug_meta || {}, transactionSampling = _a.transactionSampling, metadata = __rest(_a, ["transactionSampling"]);
+        var _b = transactionSampling || {}, samplingMethod = _b.method, sampleRate = _b.rate;
+        if (Object.keys(metadata).length === 0) {
+            delete event.debug_meta;
+        }
+        else {
+            event.debug_meta = metadata;
+        }
         var req = {
-            body: JSON.stringify(event),
-            type: event.type || 'event',
+            body: JSON.stringify(sdkInfo ? enhanceEventWithSdkInfo(event, api.metadata.sdk) : event),
+            type: eventType,
             url: useEnvelope ? api.getEnvelopeEndpointWithUrlEncodedAuth() : api.getStoreEndpointWithUrlEncodedAuth(),
         };
         // https://develop.sentry.dev/sdk/envelopes/
@@ -4159,10 +4273,7 @@ var Sentry = (function (exports) {
         // deserialization. Instead, we only implement a minimal subset of the spec to
         // serialize events inline here.
         if (useEnvelope) {
-            var envelopeHeaders = JSON.stringify({
-                event_id: event.event_id,
-                sent_at: new Date().toISOString(),
-            });
+            var envelopeHeaders = JSON.stringify(__assign({ event_id: event.event_id, sent_at: new Date().toISOString() }, (sdkInfo && { sdk: sdkInfo })));
             var itemHeaders = JSON.stringify({
                 type: event.type,
                 // TODO: Right now, sampleRate may or may not be defined (it won't be in the cases of inheritance and
@@ -4194,6 +4305,8 @@ var Sentry = (function (exports) {
         var client = new clientClass(options);
         hub.bindClient(client);
     }
+
+    var SDK_VERSION = '6.1.0';
 
     var originalFunctionToString;
     /** Patch toString calls to return proper name for wrapped functions */
@@ -4813,7 +4926,7 @@ var Sentry = (function (exports) {
             this._buffer = new PromiseBuffer(30);
             /** Locks transport after receiving rate limits in a response */
             this._rateLimits = {};
-            this._api = new API(this.options.dsn);
+            this._api = new API(options.dsn, options._metadata);
             // eslint-disable-next-line deprecation/deprecation
             this.url = this._api.getStoreEndpointWithUrlEncodedAuth();
         }
@@ -5082,7 +5195,7 @@ var Sentry = (function (exports) {
                 // We return the noop transport here in case there is no Dsn.
                 return _super.prototype._setupTransport.call(this);
             }
-            var transportOptions = __assign(__assign({}, this._options.transportOptions), { dsn: this._options.dsn });
+            var transportOptions = __assign(__assign({}, this._options.transportOptions), { dsn: this._options.dsn, _metadata: this._options._metadata });
             if (this._options.transport) {
                 return new this._options.transport(transportOptions);
             }
@@ -5825,6 +5938,7 @@ var Sentry = (function (exports) {
             }, {
                 event: handlerData.event,
                 name: handlerData.name,
+                global: handlerData.global,
             });
         };
         /**
@@ -6033,9 +6147,6 @@ var Sentry = (function (exports) {
         UserAgent: UserAgent
     });
 
-    var SDK_NAME = 'sentry.javascript.browser';
-    var SDK_VERSION = '5.29.2';
-
     /**
      * The Sentry Browser SDK Client.
      *
@@ -6076,12 +6187,6 @@ var Sentry = (function (exports) {
          */
         BrowserClient.prototype._prepareEvent = function (event, scope, hint) {
             event.platform = event.platform || 'javascript';
-            event.sdk = __assign(__assign({}, event.sdk), { name: SDK_NAME, packages: __spread(((event.sdk && event.sdk.packages) || []), [
-                    {
-                        name: 'npm:@sentry/browser',
-                        version: SDK_VERSION,
-                    },
-                ]), version: SDK_VERSION });
             return _super.prototype._prepareEvent.call(this, event, scope, hint);
         };
         /**
@@ -6176,8 +6281,19 @@ var Sentry = (function (exports) {
             }
         }
         if (options.autoSessionTracking === undefined) {
-            options.autoSessionTracking = false;
+            options.autoSessionTracking = true;
         }
+        options._metadata = options._metadata || {};
+        options._metadata.sdk = {
+            name: 'sentry.javascript.browser',
+            packages: [
+                {
+                    name: 'npm:@sentry/browser',
+                    version: SDK_VERSION,
+                },
+            ],
+            version: SDK_VERSION,
+        };
         initAndBind(BrowserClient, options);
         if (options.autoSessionTracking) {
             startSessionTracking();
@@ -6262,55 +6378,26 @@ var Sentry = (function (exports) {
      */
     function startSessionTracking() {
         var window = getGlobalObject();
+        var document = window.document;
+        if (typeof document === 'undefined') {
+            logger.warn('Session tracking in non-browser environment with @sentry/browser is not supported.');
+            return;
+        }
         var hub = getCurrentHub();
-        /**
-         * We should be using `Promise.all([windowLoaded, firstContentfulPaint])` here,
-         * but, as always, it's not available in the IE10-11. Thanks IE.
-         */
-        var loadResolved = document.readyState === 'complete';
-        var fcpResolved = false;
-        var possiblyEndSession = function () {
-            if (fcpResolved && loadResolved) {
-                hub.endSession();
-            }
-        };
-        var resolveWindowLoaded = function () {
-            loadResolved = true;
-            possiblyEndSession();
-            window.removeEventListener('load', resolveWindowLoaded);
-        };
         hub.startSession();
-        if (!loadResolved) {
-            // IE doesn't support `{ once: true }` for event listeners, so we have to manually
-            // attach and then detach it once completed.
-            window.addEventListener('load', resolveWindowLoaded);
-        }
-        try {
-            var po = new PerformanceObserver(function (entryList, po) {
-                entryList.getEntries().forEach(function (entry) {
-                    if (entry.name === 'first-contentful-paint' && entry.startTime < firstHiddenTime_1) {
-                        po.disconnect();
-                        fcpResolved = true;
-                        possiblyEndSession();
-                    }
-                });
-            });
-            // There's no need to even attach this listener if `PerformanceObserver` constructor will fail,
-            // so we do it below here.
-            var firstHiddenTime_1 = document.visibilityState === 'hidden' ? 0 : Infinity;
-            document.addEventListener('visibilitychange', function (event) {
-                firstHiddenTime_1 = Math.min(firstHiddenTime_1, event.timeStamp);
-            }, { once: true });
-            po.observe({
-                type: 'paint',
-                buffered: true,
-            });
-        }
-        catch (e) {
-            fcpResolved = true;
-            possiblyEndSession();
-        }
+        hub.captureSession();
+        // We want to create a session for every navigation as well
+        addInstrumentationHandler({
+            callback: function () {
+                hub.startSession();
+                hub.captureSession();
+            },
+            type: 'history',
+        });
     }
+
+    // TODO: Remove in the next major release and rely only on @sentry/core SDK_VERSION and SdkInfo metadata
+    var SDK_NAME = 'sentry.javascript.browser';
 
     var windowIntegrations = {};
     // This block is needed to add compatibility with the integrations packages when used with a CDN

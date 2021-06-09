@@ -54,7 +54,11 @@ from weblate.trans.defines import COMPONENT_NAME_LENGTH, REPO_LENGTH
 from weblate.trans.filter import FILTERS, get_filter_choice
 from weblate.trans.models import Announcement, Change, Component, Label, Project, Unit
 from weblate.trans.specialchars import RTL_CHARS_DATA, get_special_chars
-from weblate.trans.util import check_upload_method_permissions, is_repo_link
+from weblate.trans.util import (
+    check_upload_method_permissions,
+    is_repo_link,
+    join_plural,
+)
 from weblate.trans.validators import validate_check_flags
 from weblate.utils.errors import report_error
 from weblate.utils.forms import (
@@ -93,17 +97,6 @@ GROUP_TEMPLATE = """
 """
 TOOLBAR_TEMPLATE = """
 <div class="btn-toolbar pull-right flip editor-toolbar">{0}</div>
-"""
-EDITOR_TEMPLATE = """
-<div class="clearfix"></div>
-<div class="translation-item"><label for="{1}">{2}</label>
-{0}
-<div class="clearfix"></div>
-{3}
-<span class="pull-right flip badge length">
-<span data-max="{4}" class="length-indicator">{5}</span>/{4}
-</span>
-</div>
 """
 COPY_TEMPLATE = 'data-checksum="{0}" data-content="{1}"'
 
@@ -222,6 +215,11 @@ class PluralTextarea(forms.Textarea):
             )
 
         groups.append(GROUP_TEMPLATE.format("", "\n".join(chars)))
+        return TOOLBAR_TEMPLATE.format("\n".join(groups))
+
+    def get_rtl_toggle(self, language, fieldname):
+        if language.direction != "rtl":
+            return ""
 
         # RTL/LTR switch
         rtl_name = f"rtl-{fieldname}"
@@ -243,32 +241,26 @@ class PluralTextarea(forms.Textarea):
                 "LTR",
             ),
         ]
-        groups.append(
-            GROUP_TEMPLATE.format('data-toggle="buttons"', "\n".join(rtl_switch))
-        )
-        return TOOLBAR_TEMPLATE.format("\n".join(groups))
+        groups = [GROUP_TEMPLATE.format('data-toggle="buttons"', "\n".join(rtl_switch))]
+        return mark_safe(TOOLBAR_TEMPLATE.format("\n".join(groups)))
 
-    def get_toolbar(self, language, fieldname, unit, idx):
+    def get_toolbar(self, language, fieldname, unit, idx, source):
         """Return toolbar HTML code."""
         profile = self.profile
         groups = []
-        plurals = unit.get_source_plurals()
-        if idx and len(plurals) > 1:
-            source = plurals[1]
-        else:
-            source = plurals[0]
         # Copy button
-        groups.append(
-            GROUP_TEMPLATE.format(
-                "",
-                BUTTON_TEMPLATE.format(
-                    "copy-text",
-                    gettext("Fill in with source string"),
-                    COPY_TEMPLATE.format(unit.checksum, escape(json.dumps(source))),
-                    "{} {}".format(icon("clone.svg"), gettext("Clone source")),
-                ),
+        if source:
+            groups.append(
+                GROUP_TEMPLATE.format(
+                    "",
+                    BUTTON_TEMPLATE.format(
+                        "copy-text",
+                        gettext("Fill in with source string"),
+                        COPY_TEMPLATE.format(unit.checksum, escape(json.dumps(source))),
+                        "{} {}".format(icon("clone.svg"), gettext("Clone source")),
+                    ),
+                )
             )
-        )
 
         # Special chars
         chars = [
@@ -292,7 +284,7 @@ class PluralTextarea(forms.Textarea):
         if language.direction == "rtl":
             result = self.get_rtl_toolbar(fieldname) + result
 
-        return result
+        return mark_safe(result)
 
     def render(self, name, value, attrs=None, renderer=None, **kwargs):
         """Render all textareas with correct plural labels."""
@@ -317,6 +309,7 @@ class PluralTextarea(forms.Textarea):
 
         # Okay we have more strings
         ret = []
+        plurals = unit.get_source_plurals()
         base_id = f"id_{unit.checksum}"
         for idx, val in enumerate(values):
             # Generate ID
@@ -324,6 +317,10 @@ class PluralTextarea(forms.Textarea):
             fieldid = f"{base_id}_{idx}"
             attrs["id"] = fieldid
             attrs["tabindex"] = tabindex + idx
+            if idx and len(plurals) > 1:
+                source = plurals[1]
+            else:
+                source = plurals[0]
 
             # Render textare
             textarea = super().render(fieldname, val, attrs, renderer, **kwargs)
@@ -332,13 +329,18 @@ class PluralTextarea(forms.Textarea):
             if len(values) != 1:
                 label = "{}, {}".format(label, plural.get_plural_label(idx))
             ret.append(
-                EDITOR_TEMPLATE.format(
-                    self.get_toolbar(lang, fieldid, unit, idx),
-                    fieldid,
-                    label,
-                    textarea,
-                    attrs["data-max"],
-                    len(val),
+                render_to_string(
+                    "snippets/editor.html",
+                    {
+                        "toolbar": self.get_toolbar(lang, fieldid, unit, idx, source),
+                        "fieldid": fieldid,
+                        "label": mark_safe(label),
+                        "textarea": textarea,
+                        "max_length": attrs["data-max"],
+                        "length": len(val),
+                        "source_length": len(source),
+                        "rtl_toggle": self.get_rtl_toggle(lang, fieldid),
+                    },
                 )
             )
 
@@ -381,7 +383,7 @@ class PluralField(forms.CharField):
 
     def clean(self, value):
         value = super().clean(value)
-        if not value:
+        if not value or (self.required and not any(value)):
             raise ValidationError(_("Missing translated string!"))
         return value
 
@@ -600,6 +602,7 @@ class SimpleUploadForm(forms.Form):
             ("fuzzy", _("Add as translation needing edit")),
             ("replace", _("Replace existing translation file")),
             ("source", _("Update source strings")),
+            ("add", _("Add new strings")),
         ),
         widget=forms.RadioSelect,
         required=True,
@@ -1266,6 +1269,10 @@ class ComponentSettingsForm(SettingsBaseForm, ComponentDocsMixin):
             "variant_regex",
             "restricted",
             "auto_lock_error",
+            "links",
+            "manage_units",
+            "is_glossary",
+            "glossary_color",
         )
         widgets = {
             "enforced_checks": SelectChecksWidget,
@@ -1277,6 +1284,9 @@ class ComponentSettingsForm(SettingsBaseForm, ComponentDocsMixin):
         super().__init__(request, *args, **kwargs)
         if self.hide_restricted:
             self.fields["restricted"].widget = forms.HiddenInput()
+        self.fields["links"].queryset = request.user.owned_projects.exclude(
+            pk=self.instance.pk
+        )
         self.helper.layout = Layout(
             TabHolder(
                 Tab(
@@ -1288,6 +1298,12 @@ class ComponentSettingsForm(SettingsBaseForm, ComponentDocsMixin):
                         _("Listing and access"),
                         "priority",
                         "restricted",
+                        "links",
+                    ),
+                    Fieldset(
+                        _("Glossary"),
+                        "is_glossary",
+                        "glossary_color",
                     ),
                     css_id="basic",
                 ),
@@ -1302,6 +1318,7 @@ class ComponentSettingsForm(SettingsBaseForm, ComponentDocsMixin):
                     Fieldset(
                         _("Translation settings"),
                         "allow_translation_propagation",
+                        "manage_units",
                         "check_flags",
                         "variant_regex",
                         "enforced_checks",
@@ -1430,6 +1447,7 @@ class ComponentCreateForm(SettingsBaseForm, ComponentDocsMixin):
             "language_code_style",
             "language_regex",
             "source_language",
+            "is_glossary",
         ]
         widgets = {"source_language": SortedSelect}
 
@@ -1488,7 +1506,7 @@ class ComponentBranchForm(ComponentSelectForm):
         component = data.get("component")
         if not component or any(field not in data for field in form_fields):
             return
-        kwargs = model_to_dict(component, exclude=["id"])
+        kwargs = model_to_dict(component, exclude=["id", "links"])
         # We need a object, not integer here
         kwargs["source_language"] = component.source_language
         kwargs["project"] = component.project
@@ -1684,10 +1702,13 @@ class ComponentDiscoverForm(ComponentInitCreateForm):
                 item.meta = request.session["create_discovery_meta"][i]
                 discovered.append(item)
             return discovered
-        self.clean_instance(kwargs["initial"])
-        discovered = self.discover()
-        if not discovered:
-            discovered = self.discover(eager=True)
+        try:
+            self.clean_instance(kwargs["initial"])
+            discovered = self.discover()
+            if not discovered:
+                discovered = self.discover(eager=True)
+        except ValidationError:
+            discovered = []
         request.session["create_discovery"] = discovered
         request.session["create_discovery_meta"] = [x.meta for x in discovered]
         return discovered
@@ -1734,7 +1755,6 @@ class ProjectSettingsForm(SettingsBaseForm, ProjectDocsMixin):
         fields = (
             "name",
             "web",
-            "mail",
             "instructions",
             "set_language_team",
             "use_shared_tm",
@@ -1746,7 +1766,7 @@ class ProjectSettingsForm(SettingsBaseForm, ProjectDocsMixin):
             "source_review",
         )
         widgets = {
-            "access_control": forms.RadioSelect(),
+            "access_control": forms.RadioSelect,
             "instructions": MarkdownTextarea,
         }
 
@@ -1816,7 +1836,13 @@ class ProjectSettingsForm(SettingsBaseForm, ProjectDocsMixin):
             disabled = {}
         self.helper.layout = Layout(
             TabHolder(
-                Tab(_("Basic"), "name", "web", "mail", "instructions", css_id="basic"),
+                Tab(
+                    _("Basic"),
+                    "name",
+                    "web",
+                    "instructions",
+                    css_id="basic",
+                ),
                 Tab(
                     _("Access"),
                     InlineRadios(
@@ -1884,7 +1910,7 @@ class ProjectCreateForm(SettingsBaseForm, ProjectDocsMixin):
 
     class Meta:
         model = Project
-        fields = ("name", "slug", "web", "mail", "instructions")
+        fields = ("name", "slug", "web", "instructions")
 
 
 class ReplaceForm(forms.Form):
@@ -1924,7 +1950,11 @@ class MatrixLanguageForm(forms.Form):
         self.fields["lang"].choices = languages.as_choices()
 
 
-class NewUnitForm(forms.Form):
+class NewUnitBaseForm(forms.Form):
+    variant = forms.CharField(required=False, widget=forms.HiddenInput)
+
+
+class NewMonolingualUnitForm(NewUnitBaseForm):
     key = forms.CharField(
         label=_("Translation key"),
         help_text=_(
@@ -1942,11 +1972,76 @@ class NewUnitForm(forms.Form):
         required=True,
     )
 
-    def __init__(self, user, *args, **kwargs):
+    def __init__(self, translation, user, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["key"].widget.attrs["tabindex"] = 99
         self.fields["value"].widget.attrs["tabindex"] = 100
         self.fields["value"].widget.profile = user.profile
+        self.fields["value"].initial = Unit(translation=translation, id_hash=0)
+
+    def as_tuple(self):
+        return (self.cleaned_data["key"], self.cleaned_data["value"], None)
+
+    def unit_exists(self, obj):
+        return obj.unit_set.filter(context=self.cleaned_data["key"]).exists()
+
+
+class NewBilingualSourceUnitForm(NewUnitBaseForm):
+    context = forms.CharField(
+        label=_("Translation key"),
+        help_text=_("Optional context to clarify the source strings."),
+        required=False,
+    )
+    source = PluralField(
+        label=_("Source string"),
+        required=True,
+    )
+
+    def __init__(self, translation, user, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["context"].widget.attrs["tabindex"] = 99
+        self.fields["source"].widget.attrs["tabindex"] = 100
+        self.fields["source"].widget.profile = user.profile
+        self.fields["source"].initial = Unit(
+            translation=translation.component.source_translation, id_hash=0
+        )
+
+    def as_tuple(self):
+        return (
+            self.cleaned_data.get("context", ""),
+            self.cleaned_data["source"],
+            self.cleaned_data.get("target", ""),
+        )
+
+    def unit_exists(self, obj):
+        return obj.unit_set.filter(
+            context=self.cleaned_data.get("context", ""),
+            source=join_plural(self.cleaned_data["source"]),
+        ).exists()
+
+
+class NewBilingualUnitForm(NewBilingualSourceUnitForm):
+    target = PluralField(
+        label=_("Translated string"),
+        help_text=_(
+            "You can edit this later, as with any other string in " "the translation."
+        ),
+        required=True,
+    )
+
+    def __init__(self, translation, user, *args, **kwargs):
+        super().__init__(translation, user, *args, **kwargs)
+        self.fields["target"].widget.attrs["tabindex"] = 101
+        self.fields["target"].widget.profile = user.profile
+        self.fields["target"].initial = Unit(translation=translation, id_hash=0)
+
+
+def get_new_unit_form(translation, user, data=None, initial=None):
+    if translation.component.has_template():
+        return NewMonolingualUnitForm(translation, user, data=data, initial=initial)
+    if translation.is_source:
+        return NewBilingualSourceUnitForm(translation, user, data=data, initial=initial)
+    return NewBilingualUnitForm(translation, user, data=data, initial=initial)
 
 
 class BulkEditForm(forms.Form):

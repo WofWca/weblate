@@ -24,7 +24,9 @@ from django.test import SimpleTestCase, TestCase
 from pytz import utc
 
 from weblate.trans.models import Change, Unit
+from weblate.trans.tests.test_views import ViewTestCase
 from weblate.trans.util import PLURAL_SEPARATOR
+from weblate.utils.db import using_postgresql
 from weblate.utils.search import Comparer, parse_query
 from weblate.utils.state import (
     STATE_APPROVED,
@@ -52,12 +54,14 @@ class ComparerTest(SimpleTestCase):
         self.assertLessEqual(Comparer().similarity("a" * 200000, "b" * 200000), 50)
 
 
-class QueryParserTest(TestCase):
-    def assert_query(self, string, expected):
-        result = parse_query(string)
+class SearchMixin:
+    def assert_query(self, string, expected, exists=False, **context):
+        result = parse_query(string, **context)
         self.assertEqual(result, expected)
-        self.assertFalse(Unit.objects.filter(result).exists())
+        self.assertEqual(Unit.objects.filter(result).exists(), exists)
 
+
+class QueryParserTest(TestCase, SearchMixin):
     def test_simple(self):
         self.assert_query(
             "hello world",
@@ -274,6 +278,8 @@ class QueryParserTest(TestCase):
             Q(screenshots__isnull=False) | Q(source_unit__screenshots__isnull=False),
         )
         self.assert_query("has:flags", ~Q(source_unit__extra_flags=""))
+        self.assert_query("has:explanation", ~Q(source_unit__explanation=""))
+        self.assert_query("has:glossary", Q(source__isnull=True))
 
     def test_is(self):
         self.assert_query("is:pending", Q(pending=True))
@@ -288,6 +294,11 @@ class QueryParserTest(TestCase):
             "changed_by:nijel",
             Q(change__author__username__iexact="nijel")
             & Q(change__action__in=Change.ACTIONS_CONTENT),
+        )
+
+    def test_explanation(self):
+        self.assert_query(
+            "explanation:text", Q(source_unit__explanation__substring="text")
         )
 
     def test_suggestions(self):
@@ -394,3 +405,25 @@ class QueryParserTest(TestCase):
         self.assert_query('"', parse_query("""'"'"""))
         self.assert_query("source:'", parse_query('''source:"'"'''))
         self.assert_query('source:"', parse_query("""source:'"'"""))
+
+
+class SearchTest(ViewTestCase, SearchMixin):
+    """Search tests on real projects."""
+
+    def test_glossary_empty(self):
+        self.assert_query("has:glossary", Q(source__isnull=True), project=self.project)
+
+    def test_glossary_match(self):
+        glossary = self.project.glossaries[0].translation_set.get(language_code="cs")
+        glossary.add_units(None, [("", "hello", "ahoj")])
+
+        if using_postgresql():
+            expected = "[[:<:]](hello)[[:>:]]"
+        else:
+            expected = r"(^|[ \t\n\r\f\v])(hello)($|[ \t\n\r\f\v])"
+        self.assert_query(
+            "has:glossary",
+            Q(source__iregex=expected),
+            True,
+            project=self.project,
+        )

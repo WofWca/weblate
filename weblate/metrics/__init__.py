@@ -16,23 +16,4 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
-
-from diff_match_patch import diff_match_patch
-from django.utils.html import escape
-
-
-def html_diff(old, new):
-    """Generate HTML formatted diff of two strings."""
-    dmp = diff_match_patch()
-    diff = dmp.diff_main(old, new)
-    dmp.diff_cleanupSemantic(diff)
-
-    result = []
-    for op, data in diff:
-        if op == dmp.DIFF_DELETE:
-            result.append("<del>{}</del>".format(escape(data)))
-        elif op == dmp.DIFF_INSERT:
-            result.append("<ins>{}</ins>".format(escape(data)))
-        elif op == dmp.DIFF_EQUAL:
-            result.append(escape(data))
-    return "".join(result)
+default_app_config = "weblate.metrics.apps.MetricsConfig"

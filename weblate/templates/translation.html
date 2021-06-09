@@ -29,12 +29,14 @@
 {% perm 'unit.add' object as user_can_add_unit %}
 
 {% get_translate_url object as translate_url %}
+{% url "translate" project=object.component.project.slug component=object.component.slug lang=object.language.code as edit_url %}
+{% url "zen" project=object.component.project.slug component=object.component.slug lang=object.language.code as zen_url %}
+{% url "browse" project=object.component.project.slug component=object.component.slug lang=object.language.code as browse_url %}
 
 <ul class="nav nav-pills">
   <li class="active"><a href="#overview" data-toggle="tab">{% trans "Overview" %}</a></li>
   <li><a href="#information" data-toggle="tab">{% trans "Info" %}</a></li>
   <li><a href="#search" data-toggle="tab">{% trans "Search" %}</a></li>
-  <li><a href="{% url 'show_glossary' project=object.component.project.slug lang=object.language.code %}">{% trans "Glossary" %}</a></li>
   <li class="dropdown">
     <a class="dropdown-toggle" data-toggle="dropdown" href="#">
       {% trans "Insights" %} <span class="caret"></span>
@@ -58,16 +60,17 @@
       {% trans "Tools" %} <span class="caret"></span>
     </a>
     <ul class="dropdown-menu">
-      <li><a href="{% url 'data_project' project=object.component.project.slug  %}">{% trans "Data exports" %}</a></li>
-      {% if autoform %}
-      <li><a href="#auto" data-toggle="tab">{% trans "Automatic translation" %}</a></li>
-      {% endif %}
       {% if replace_form %}
       <li><a href="#replace" data-toggle="tab">{% trans "Search and replace" %}</a></li>
       {% endif %}
       {% if bulk_state_form %}
       <li><a href="#bulk-edit" data-toggle="tab">{% trans "Bulk edit" %}</a></li>
       {% endif %}
+      {% if autoform %}
+      <li><a href="#auto" data-toggle="tab">{% trans "Automatic translation" %}</a></li>
+      {% endif %}
+      <li><a href="{% url 'data_project' project=object.component.project.slug  %}">{% trans "Data exports" %}</a></li>
+      <li><a href="{% url 'checks' %}?project={{ object.component.project.slug}}&amp;component={{ object.component.slug }}&amp;language={{ object.language.code }}">{% trans "Failing checks" %}</a></li>
       {% if user_can_add_unit %}
       <li><a href="#new" data-toggle="tab">{% trans "Add new translation string" %}</a></li>
       {% endif %}
@@ -134,7 +137,10 @@
 <td class="progress-cell hidden-xs">{% translation_progress object %}</td>
 <td class="percent">{{ object.stats.translated_percent|percent_format }}</td>
 <td rowspan="2" class="buttons-cell full-cell">
-<a href="{{ translate_url }}{% if object.stats.todo > 0 %}?q=state:&lt;translated{% endif %}" class="pull-right flip btn btn-primary">{% trans "Translate" %}</a>
+<div class="pull-right flip">
+  <a href="{{ browse_url }}" class=" btn btn-info">{% trans "Browse" %}</a>
+  <a href="{{ translate_url }}{% if object.stats.todo > 0 %}?q=state:&lt;translated{% endif %}" class="btn btn-primary">{% trans "Translate" %}</a>
+</div>
 </td>
 </tr>
 
@@ -176,6 +182,11 @@
     <a href="{{ translate_url }}?q={{ query }}">
         {{ name }} — {% blocktrans with count=words|intcomma count cnt=words %}{{ count }} word{% plural %}{{ count }} words{% endblocktrans %}
     </a>
+</td>
+<td>
+  <a class="btn-inline" href="{{ browse_url }}?q={{ query }}">{% trans "Browse" %}</a>
+  <a class="btn-inline" href="{{ edit_url }}?q={{ query }}">{% trans "Edit" %}</a>
+  <a class="btn-inline" href="{{ zen_url }}?q={{ query }}">{% trans "Zen" %}</a>
 </td>
 {% endfor %}
 </table>
@@ -294,7 +305,9 @@
 <div class="panel panel-default">
 <div class="panel-heading"><h4 class="panel-title">{% trans "Add new translation string" %}</h4></div>
 <div class="panel-body">
+{% if obj.is_source %}
 <p>{% trans "You can add a new translation string here, it will automatically appear in all translations." %}</p>
+{% endif %}
 {% csrf_token %}
 {{ new_unit_form|crispy }}
 </div>

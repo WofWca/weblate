@@ -52,6 +52,8 @@ PLAIN_FLAGS["auto-java-messageformat"] = gettext_lazy(
 )
 PLAIN_FLAGS["read-only"] = gettext_lazy("Read only")
 PLAIN_FLAGS["strict-same"] = gettext_lazy("Strict unchanged check")
+PLAIN_FLAGS["forbidden"] = gettext_lazy("Forbidden translation")
+PLAIN_FLAGS["terminology"] = gettext_lazy("Terminology")
 
 TYPED_FLAGS["font-family"] = gettext_lazy("Font family")
 TYPED_FLAGS_ARGS["font-family"] = single_value_flag(str)
@@ -67,6 +69,8 @@ TYPED_FLAGS["max-length"] = gettext_lazy("Maximum length of translation")
 TYPED_FLAGS_ARGS["max-length"] = single_value_flag(int)
 TYPED_FLAGS["replacements"] = gettext_lazy("Replacements while rendering")
 TYPED_FLAGS_ARGS["replacements"] = multi_value_flag(str, modulo=2)
+TYPED_FLAGS["variant"] = gettext_lazy("String variant")
+TYPED_FLAGS_ARGS["variant"] = single_value_flag(str)
 
 IGNORE_CHECK_FLAGS = {CHECKS[x].ignore_string for x in CHECKS}
 
@@ -258,3 +262,7 @@ class Flags:
                 raise ValidationError(
                     _('Missing parameters for translation flag: "%s"') % name
                 )
+
+    def set_value(self, name, value):
+        self._values[name] = value
+        self._items[name] = (name, value)

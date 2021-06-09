@@ -169,6 +169,7 @@ class TranslationFormat:
     simple_filename: bool = True
     new_translation: Optional[Union[str, bytes]] = None
     autoaddon: Dict[str, Dict[str, str]] = {}
+    create_empty_bilingual: bool = False
 
     @classmethod
     def get_identifier(cls):
@@ -176,23 +177,40 @@ class TranslationFormat:
 
     @classmethod
     def parse(
-        cls, storefile, template_store=None, language_code=None, is_template=False
+        cls,
+        storefile,
+        template_store=None,
+        language_code: Optional[str] = None,
+        source_language: Optional[str] = None,
+        is_template: bool = False,
     ):
         """Parse store and returns TranslationFormat instance.
 
         This wrapper is needed for AutodetectFormat to be able to return instance of
         different class.
         """
-        return cls(storefile, template_store, language_code, is_template)
+        return cls(
+            storefile,
+            template_store=template_store,
+            language_code=language_code,
+            is_template=is_template,
+        )
 
     def __init__(
-        self, storefile, template_store=None, language_code=None, is_template=False
+        self,
+        storefile,
+        template_store=None,
+        language_code: Optional[str] = None,
+        source_language: Optional[str] = None,
+        is_template: bool = False,
     ):
         """Create file format object, wrapping up translate-toolkit's store."""
         if not isinstance(storefile, str) and not hasattr(storefile, "mode"):
             storefile.mode = "r"
 
         self.storefile = storefile
+        self.language_code = language_code
+        self.source_language = source_language
 
         # Load store
         self.store = self.load(storefile, template_store)
@@ -351,8 +369,12 @@ class TranslationFormat:
 
     @classmethod
     def is_valid_base_for_new(
-        cls, base, monolingual, errors: Optional[List] = None, fast: bool = False
-    ):
+        cls,
+        base: str,
+        monolingual: bool,
+        errors: Optional[List] = None,
+        fast: bool = False,
+    ) -> bool:
         """Check whether base is valid."""
         raise NotImplementedError()
 
@@ -452,12 +474,22 @@ class TranslationFormat:
 
             yield set_fuzzy, unit
 
-    def create_unit(self, key: str, source: Union[str, List[str]]):
+    def create_unit(
+        self,
+        key: str,
+        source: Union[str, List[str]],
+        target: Optional[Union[str, List[str]]] = None,
+    ):
         raise NotImplementedError()
 
-    def new_unit(self, key: str, source: Union[str, List[str]]):
+    def new_unit(
+        self,
+        key: str,
+        source: Union[str, List[str]],
+        target: Optional[Union[str, List[str]]] = None,
+    ):
         """Add new unit to monolingual store."""
-        unit = self.create_unit(key, source)
+        unit = self.create_unit(key, source, target)
         self.add_unit(unit)
         self.save()
 

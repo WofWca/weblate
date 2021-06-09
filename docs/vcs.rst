@@ -5,7 +5,7 @@ Version control integration
 
 Weblate currently supports :ref:`vcs-git` (with extended support for
 :ref:`vcs-github`, :ref:`vcs-gerrit` and :ref:`vcs-git-svn`) and
-:ref:`vcs-mercurial` as version control backends.
+:ref:`vcs-mercurial` as version control back-ends.
 
 .. _vcs-repos:
 
@@ -24,18 +24,18 @@ Accessing repositories from Hosted Weblate
 ++++++++++++++++++++++++++++++++++++++++++
 
 For Hosted Weblate there is a dedicated push user registered on GitHub,
-Bitbucket, Codeberg and GitLab (with username :guilabel:`weblate` named
-:guilabel:`Weblate push user`). You need to add this user as a collaborator and
-give it appropriate permission to your repository (read only is okay for
-cloning, write is required for pushing). Depending on service and your
-organization settings, this happens immediately or requires confirmation from
-Weblate side.
+Bitbucket, Codeberg and GitLab (with the username :guilabel:`weblate`, e-mail
+``hosted@weblate.org`` and, named :guilabel:`Weblate push user`). You need to
+add this user as a collaborator and give it appropriate permission to your
+repository (read-only is okay for cloning, write is required for pushing).
+Depending on service and your organization settings, this happens immediately,
+or requires confirmation on the Weblate side.
 
-The invitations on GitHub are accepted automatically within five minutes, on
-other services manual processing might be needed, so please be patient.
+The :guilabel:`weblate` user on GitHub accepts invitations automatically within five minutes.
+Manual processing might be needed on the other services, so please be patient.
 
 Once the :guilabel:`weblate` user is added, you can configure
-:ref:`component-repo` and :ref:`component-push` using SSH protocol (for example
+:ref:`component-repo` and :ref:`component-push` using the SSH protocol (for example
 ``git@github.com:WeblateOrg/weblate.git``).
 
 .. _ssh-repos:
@@ -49,8 +49,8 @@ repository this way.
 
 .. warning::
 
-    On GitHub, each key can be added to only one repository, see
-    :ref:`vcs-repos-github` and :ref:`hosted-push`.
+    On GitHub, each key can only be used once, see :ref:`vcs-repos-github` and
+    :ref:`hosted-push`.
 
 Weblate also stores the host key fingerprint upon first connection, and fails to
 connect to the host should it be changed later (see :ref:`verify-ssh`).
@@ -84,15 +84,16 @@ Admins can generate or display the public key currently used by Weblate in the c
 Verifying SSH host keys
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-Weblate automatically remembers the SSH host keys on first access and remembers
+Weblate automatically stores the SSH host keys on first access and remembers
 them for further use.
 
-In case you want to verify them before connecting to the repository, verify the
-SSH host keys of the servers you are going to access in :guilabel:`Add host
-key`, from the same section of the admin interface. Enter the hostname you are
-going to access (e.g. ``gitlab.com``), and press :guilabel:`Submit`.  Verify
-its fingerprint matches the server you added. They are shown in the
-confirmation message:
+In case you want to verify the key fingerprint before connecting to the
+repository, add the SSH host keys of the servers you are going to access in
+:guilabel:`Add host key`, from the same section of the admin interface. Enter
+the hostname you are going to access (e.g. ``gitlab.com``), and press
+:guilabel:`Submit`. Verify its fingerprint matches the server you added.
+
+The added keys with fingerprints are shown in the confirmation message:
 
 .. image:: images/ssh-keys-added.png
 
@@ -103,7 +104,7 @@ GitHub repositories
 
 Access via SSH is possible (see :ref:`ssh-repos`), but in case you need to
 access more than one repository, you will hit a GitHub limitation on allowed
-SSH key usage (since one key can be used only for one repository).
+SSH key usage (since each key can be used only once).
 
 In case the :ref:`component-push_branch` is not set, the project is forked and
 changes pushed through a fork. In case it is set, changes are pushed to the
@@ -112,7 +113,7 @@ upstream repository and chosen branch.
 For smaller deployments, use HTTPS authentication with a personal access
 token and your GitHub account, see `Creating an access token for command-line use`_.
 
-.. _Creating an access token for command-line use: https://docs.github.com/en/free-pro-team@latest/github/authenticating-to-github/creating-a-personal-access-token
+.. _Creating an access token for command-line use: https://docs.github.com/en/github/authenticating-to-github/creating-a-personal-access-token
 
 For bigger setups, it is usually better to create a dedicated user for Weblate,
 assign it the public SSH key generated in Weblate (see :ref:`weblate-ssh-key`)
@@ -129,21 +130,24 @@ approach is also used for Hosted Weblate, there is dedicated
 Weblate internal URLs
 +++++++++++++++++++++
 
-To share one repository between different components you can use a special URL
-like ``weblate://project/component``. This way, the component will share the
-VCS repository configuration with the referenced component
-(``project/component`` in the example).
+Share one repository setup between different components by referring to
+its placement as ``weblate://project/component`` in other(linked) components. This way linked components
+use the VCS repository configuration of the main(referenced) component.
 
-Weblate automatically adjusts repository URL when creating component when it
-finds component with matching repository setup. You can override this in last
-step of component configuration.
+.. warning::
+
+   Removing main component also removes linked components.
+
+Weblate automatically adjusts the repository URL when creating a component if it
+finds a component with a matching repository setup. You can override this in
+the last step of the component configuration.
 
 Reasons to use this:
 
 * Saves disk space on the server, the repository is stored just once.
 * Makes the updates faster, only one repository is updated.
 * There is just single exported repository with Weblate translations (see :ref:`git-exporter`).
-* Some addons can operate on more components sharing single repository, for example :ref:`addon-weblate.git.squash`.
+* Some addons can operate on multiple components sharing one repository, for example :ref:`addon-weblate.git.squash`.
 
 
 HTTPS repositories
@@ -257,7 +261,7 @@ GitHub
 
 .. versionadded:: 2.3
 
-This adds a thin layer atop :ref:`vcs-git` using the `Github API`_ to allow pushing
+This adds a thin layer atop :ref:`vcs-git` using the `GitHub API`_ to allow pushing
 translation changes as pull requests, instead of pushing directly to the repository.
 
 :ref:`vcs-git` pushes changes directly to a repository, while
@@ -285,7 +289,7 @@ You need to configure API credentials to make this work.
    :setting:`GITHUB_TOKEN`,
    :setting:`GITHUB_CREDENTIALS`
 
-.. _Github API: https://docs.github.com/en/free-pro-team@latest/rest
+.. _GitHub API: https://docs.github.com/en/rest
 
 .. _vcs-gitlab:
 
@@ -421,7 +425,7 @@ users to maintain a full clone of the internal repository and commit locally.
 
 .. versionchanged:: 2.19
 
-    Before this, there was only support for standard layout repositories.
+    Before this, only repositories using the standard layout were supported.
 
 .. _git-svn: https://git-scm.com/docs/git-svn
 
@@ -430,9 +434,10 @@ users to maintain a full clone of the internal repository and commit locally.
 Subversion credentials
 ++++++++++++++++++++++
 
-Weblate expects you to have accepted the certificate up-front and if needed,
-your credentials. It will look to insert them into the DATA_DIR directory.
-Accept the certificate by using `svn` once with the `$HOME` environment variable set to the DATA_DIR:
+Weblate expects you to have accepted the certificate up-front (and your
+credentials if needed). It will look to insert them into the :setting:`DATA_DIR`
+directory. Accept the certificate by using `svn` once with the `$HOME`
+environment variable set to the :setting:`DATA_DIR`:
 
 .. code-block:: sh
 

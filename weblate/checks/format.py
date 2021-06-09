@@ -211,6 +211,7 @@ FLAG_RULES = {
     "c-format": (C_PRINTF_MATCH, c_format_is_position_based),
     "perl-format": (C_PRINTF_MATCH, c_format_is_position_based),
     "javascript-format": (C_PRINTF_MATCH, c_format_is_position_based),
+    "lua-format": (C_PRINTF_MATCH, c_format_is_position_based),
     "python-brace-format": (PYTHON_BRACE_MATCH, name_format_is_position_based),
     "c-sharp-format": (C_SHARP_MATCH, name_format_is_position_based),
     "java-format": (JAVA_MATCH, c_format_is_position_based),
@@ -218,7 +219,7 @@ FLAG_RULES = {
 
 
 class BaseFormatCheck(TargetCheck):
-    """Base class for fomat string checks."""
+    """Base class for format string checks."""
 
     regexp: Optional[Pattern[str]] = None
     default_disabled = True
@@ -230,10 +231,10 @@ class BaseFormatCheck(TargetCheck):
     def check_generator(self, sources, targets, unit):
         # Special case languages with single plural form
         if len(sources) > 1 and len(targets) == 1:
-            yield self.check_format(sources[1], targets[0], False)
+            yield self.check_format(sources[1], targets[0], False, unit)
             return
 
-        # Use plural as source in case singlular misses format string and plural has it
+        # Use plural as source in case singular misses format string and plural has it
         if (
             len(sources) > 1
             and not self.extract_matches(sources[0])
@@ -255,6 +256,7 @@ class BaseFormatCheck(TargetCheck):
             # won't be 0 so don't trigger too many false positives
             len(sources) > 1
             and (len(plural_examples[0]) == 1 or plural_examples[0] == ["0", "1"]),
+            unit,
         )
 
         # Do we have more to check?
@@ -264,7 +266,7 @@ class BaseFormatCheck(TargetCheck):
         # Check plurals against plural from source
         for i, target in enumerate(targets[1:]):
             yield self.check_format(
-                sources[1], target, len(plural_examples[i + 1]) == 1
+                sources[1], target, len(plural_examples[i + 1]) == 1, unit
             )
 
     def format_string(self, string):
@@ -279,7 +281,7 @@ class BaseFormatCheck(TargetCheck):
     def extract_matches(self, string):
         return [self.cleanup_string(x[0]) for x in self.regexp.findall(string)]
 
-    def check_format(self, source, target, ignore_missing):
+    def check_format(self, source, target, ignore_missing, unit):
         """Generic checker for format strings."""
         if not target or not source:
             return False
@@ -429,6 +431,14 @@ class JavaScriptFormatCheck(CFormatCheck):
     description = _("JavaScript format string does not match source")
 
 
+class LuaFormatCheck(BasePrintfCheck):
+    """Check for Lua format string."""
+
+    check_id = "lua_format"
+    name = _("Lua format")
+    description = _("Lua format string does not match source")
+
+
 class PythonBraceFormatCheck(BaseFormatCheck):
     """Check for Python format string."""
 
@@ -484,18 +494,19 @@ class JavaMessageFormatCheck(BaseFormatCheck):
 
         return super().should_skip(unit)
 
-    def check_format(self, source, target, ignore_missing):
+    def check_format(self, source, target, ignore_missing, unit):
         """Generic checker for format strings."""
         if not target or not source:
             return False
 
-        result = super().check_format(source, target, ignore_missing)
+        result = super().check_format(source, target, ignore_missing, unit)
 
-        # Even number of quotes
-        if target.count("'") % 2 != 0:
-            if not result:
-                result = {"missing": [], "extra": []}
-            result["missing"].append("'")
+        # Even number of quotes, unless in GWT which enforces this
+        if unit.translation.component.file_format != "gwt":
+            if target.count("'") % 2 != 0:
+                if not result:
+                    result = {"missing": [], "extra": []}
+                result["missing"].append("'")
 
         return result
 
@@ -558,11 +569,11 @@ class MultipleUnnamedFormatsCheck(SourceCheck):
         rules = [FLAG_RULES[flag] for flag in unit.all_flags if flag in FLAG_RULES]
         if not rules:
             return False
-        found = 0
+        found = set()
         for regexp, is_position_based in rules:
-            for match in regexp.findall(source[0]):
-                if is_position_based(match[0]):
-                    found += 1
-                    if found >= 2:
+            for match in regexp.finditer(source[0]):
+                if is_position_based(match[1]):
+                    found.add((match.start(0), match.end(0)))
+                    if len(found) >= 2:
                         return True
         return False

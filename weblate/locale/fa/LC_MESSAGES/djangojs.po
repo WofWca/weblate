@@ -7,9 +7,9 @@
 # Mostafa Ahangarha <ahangarha@gmail.com>, 2020.
 msgid ""
 msgstr ""
-"Project-Id-Version: Weblate 4.4.1\n"
+"Project-Id-Version: Weblate 4.5\n"
 "Report-Msgid-Bugs-To: https://github.com/WeblateOrg/weblate/issues\n"
-"POT-Creation-Date: 2021-01-12 19:14+0000\n"
+"POT-Creation-Date: 2021-02-17 14:01+0000\n"
 "PO-Revision-Date: 2020-10-03 10:41+0000\n"
 "Last-Translator: Mostafa Ahangarha <ahangarha@gmail.com>\n"
 "Language-Team: Persian <https://hosted.weblate.org/projects/weblate/"
@@ -60,11 +60,11 @@ msgstr "برای رد کردن این، دکمه‌های Cmd+I و سپس %s ر�
 msgid "Press Ctrl+I then %s to dismiss this."
 msgstr "برای رد کردن این، دکمه‌های Ctrl+I و سپس %s را بفشارید."
 
-#: weblate/static/editor/full.js:489
+#: weblate/static/editor/full.js:495
 msgid "Copy"
 msgstr "کپی"
 
-#: weblate/static/editor/full.js:495
+#: weblate/static/editor/full.js:501
 msgid "Copy and save"
 msgstr "کپی و ذخیره"
 
@@ -72,264 +72,264 @@ msgstr "کپی و ذخیره"
 msgid "There are some unsaved changes, are you sure you want to leave?"
 msgstr "برخی از تغییرات ذخیره نشده‌اند، آیا برای خروج مطمئن هستید؟"
 
-#: weblate/static/loader-bootstrap.js:158
+#: weblate/static/loader-bootstrap.js:160
 msgid "Add to screenshot"
 msgstr "افزودن به تصویر صفحه"
 
-#: weblate/static/loader-bootstrap.js:175
+#: weblate/static/loader-bootstrap.js:177
 msgid "Error loading search results!"
 msgstr "خطا در بارگیری نتایج جستجو!"
 
-#: weblate/static/loader-bootstrap.js:179
+#: weblate/static/loader-bootstrap.js:181
 msgid "No new matching source strings found."
 msgstr "هیچ رشته منبع جدید منطبقی یافت نشد."
 
-#: weblate/static/loader-bootstrap.js:245
+#: weblate/static/loader-bootstrap.js:247
 msgid "Sort this column"
 msgstr "مرتب سازی این ستون"
 
-#: weblate/static/loader-bootstrap.js:454
+#: weblate/static/loader-bootstrap.js:460
 msgid "Error while loading page:"
 msgstr "خطای بارگیری صفحه:"
 
-#: weblate/static/loader-bootstrap.js:615
-#: weblate/static/loader-bootstrap.js:622
+#: weblate/static/loader-bootstrap.js:621
+#: weblate/static/loader-bootstrap.js:628
 msgid "Sunday"
 msgstr "یکشنبه"
 
-#: weblate/static/loader-bootstrap.js:616
+#: weblate/static/loader-bootstrap.js:622
 msgid "Monday"
 msgstr "دوشنبه"
 
-#: weblate/static/loader-bootstrap.js:617
+#: weblate/static/loader-bootstrap.js:623
 msgid "Tuesday"
 msgstr "سه شنبه"
 
-#: weblate/static/loader-bootstrap.js:618
+#: weblate/static/loader-bootstrap.js:624
 msgid "Wednesday"
 msgstr "چهارشنبه"
 
-#: weblate/static/loader-bootstrap.js:619
+#: weblate/static/loader-bootstrap.js:625
 msgid "Thursday"
 msgstr "پنج شنبه"
 
-#: weblate/static/loader-bootstrap.js:620
+#: weblate/static/loader-bootstrap.js:626
 msgid "Friday"
 msgstr "جمعه"
 
-#: weblate/static/loader-bootstrap.js:621
+#: weblate/static/loader-bootstrap.js:627
 msgid "Saturday"
 msgstr "شنبه"
 
-#: weblate/static/loader-bootstrap.js:625
-#: weblate/static/loader-bootstrap.js:632
+#: weblate/static/loader-bootstrap.js:631
+#: weblate/static/loader-bootstrap.js:638
 msgctxt "Short (for example three letter) name of day in week"
 msgid "Sun"
 msgstr "1شنبه"
 
-#: weblate/static/loader-bootstrap.js:626
+#: weblate/static/loader-bootstrap.js:632
 msgctxt "Short (for example three letter) name of day in week"
 msgid "Mon"
 msgstr "2شنبه"
 
-#: weblate/static/loader-bootstrap.js:627
+#: weblate/static/loader-bootstrap.js:633
 msgctxt "Short (for example three letter) name of day in week"
 msgid "Tue"
 msgstr "3شنبه"
 
-#: weblate/static/loader-bootstrap.js:628
+#: weblate/static/loader-bootstrap.js:634
 msgctxt "Short (for example three letter) name of day in week"
 msgid "Wed"
 msgstr "4شنبه"
 
-#: weblate/static/loader-bootstrap.js:629
+#: weblate/static/loader-bootstrap.js:635
 msgctxt "Short (for example three letter) name of day in week"
 msgid "Thu"
 msgstr "5شنبه"
 
-#: weblate/static/loader-bootstrap.js:630
+#: weblate/static/loader-bootstrap.js:636
 msgctxt "Short (for example three letter) name of day in week"
 msgid "Fri"
 msgstr "جمعه"
 
-#: weblate/static/loader-bootstrap.js:631
+#: weblate/static/loader-bootstrap.js:637
 msgctxt "Short (for example three letter) name of day in week"
 msgid "Sat"
 msgstr "شنبه"
 
-#: weblate/static/loader-bootstrap.js:635
-#: weblate/static/loader-bootstrap.js:642
+#: weblate/static/loader-bootstrap.js:641
+#: weblate/static/loader-bootstrap.js:648
 msgctxt "Minimal (for example two letter) name of day in week"
 msgid "Su"
 msgstr "1ش"
 
-#: weblate/static/loader-bootstrap.js:636
+#: weblate/static/loader-bootstrap.js:642
 msgctxt "Minimal (for example two letter) name of day in week"
 msgid "Mo"
 msgstr "2ش"
 
-#: weblate/static/loader-bootstrap.js:637
+#: weblate/static/loader-bootstrap.js:643
 msgctxt "Minimal (for example two letter) name of day in week"
 msgid "Tu"
 msgstr "3ش"
 
-#: weblate/static/loader-bootstrap.js:638
+#: weblate/static/loader-bootstrap.js:644
 msgctxt "Minimal (for example two letter) name of day in week"
 msgid "We"
 msgstr "4ش"
 
-#: weblate/static/loader-bootstrap.js:639
+#: weblate/static/loader-bootstrap.js:645
 msgctxt "Minimal (for example two letter) name of day in week"
 msgid "Th"
 msgstr "5"
 
-#: weblate/static/loader-bootstrap.js:640
+#: weblate/static/loader-bootstrap.js:646
 msgctxt "Minimal (for example two letter) name of day in week"
 msgid "Fr"
 msgstr "ج"
 
-#: weblate/static/loader-bootstrap.js:641
+#: weblate/static/loader-bootstrap.js:647
 msgctxt "Minimal (for example two letter) name of day in week"
 msgid "Sa"
 msgstr "ش"
 
-#: weblate/static/loader-bootstrap.js:645
+#: weblate/static/loader-bootstrap.js:651
 msgid "January"
 msgstr "ژانویه"
 
-#: weblate/static/loader-bootstrap.js:646
+#: weblate/static/loader-bootstrap.js:652
 msgid "February"
 msgstr "فوریه"
 
-#: weblate/static/loader-bootstrap.js:647
+#: weblate/static/loader-bootstrap.js:653
 msgid "March"
 msgstr "مارس"
 
-#: weblate/static/loader-bootstrap.js:648
+#: weblate/static/loader-bootstrap.js:654
 msgid "April"
 msgstr "آوریل"
 
-#: weblate/static/loader-bootstrap.js:649
+#: weblate/static/loader-bootstrap.js:655
 msgid "May"
 msgstr "مه"
 
-#: weblate/static/loader-bootstrap.js:650
+#: weblate/static/loader-bootstrap.js:656
 msgid "June"
 msgstr "ژوئن"
 
-#: weblate/static/loader-bootstrap.js:651
+#: weblate/static/loader-bootstrap.js:657
 msgid "July"
 msgstr "جولای"
 
-#: weblate/static/loader-bootstrap.js:652
+#: weblate/static/loader-bootstrap.js:658
 msgid "August"
 msgstr "اوت"
 
-#: weblate/static/loader-bootstrap.js:653
+#: weblate/static/loader-bootstrap.js:659
 msgid "September"
 msgstr "سپتامبر"
 
-#: weblate/static/loader-bootstrap.js:654
+#: weblate/static/loader-bootstrap.js:660
 msgid "October"
 msgstr "اکتبر"
 
-#: weblate/static/loader-bootstrap.js:655
+#: weblate/static/loader-bootstrap.js:661
 msgid "November"
 msgstr "نوامبر"
 
-#: weblate/static/loader-bootstrap.js:656
+#: weblate/static/loader-bootstrap.js:662
 msgid "December"
 msgstr "دسامبر"
 
-#: weblate/static/loader-bootstrap.js:659
+#: weblate/static/loader-bootstrap.js:665
 msgctxt "Short name of month"
 msgid "Jan"
 msgstr "ژانویه"
 
-#: weblate/static/loader-bootstrap.js:660
+#: weblate/static/loader-bootstrap.js:666
 msgctxt "Short name of month"
 msgid "Feb"
 msgstr "فوریه"
 
-#: weblate/static/loader-bootstrap.js:661
+#: weblate/static/loader-bootstrap.js:667
 msgctxt "Short name of month"
 msgid "Mar"
 msgstr "مارس"
 
-#: weblate/static/loader-bootstrap.js:662
+#: weblate/static/loader-bootstrap.js:668
 msgctxt "Short name of month"
 msgid "Apr"
 msgstr "آوریل"
 
-#: weblate/static/loader-bootstrap.js:663
+#: weblate/static/loader-bootstrap.js:669
 msgctxt "Short name of month"
 msgid "May"
 msgstr "مه"
 
-#: weblate/static/loader-bootstrap.js:664
+#: weblate/static/loader-bootstrap.js:670
 msgctxt "Short name of month"
 msgid "Jun"
 msgstr "ژوئن"
 
-#: weblate/static/loader-bootstrap.js:665
+#: weblate/static/loader-bootstrap.js:671
 msgctxt "Short name of month"
 msgid "Jul"
 msgstr "جولای"
 
-#: weblate/static/loader-bootstrap.js:666
+#: weblate/static/loader-bootstrap.js:672
 msgctxt "Short name of month"
 msgid "Aug"
 msgstr "اوت"
 
-#: weblate/static/loader-bootstrap.js:667
+#: weblate/static/loader-bootstrap.js:673
 msgctxt "Short name of month"
 msgid "Sep"
 msgstr "سپتامبر"
 
-#: weblate/static/loader-bootstrap.js:668
+#: weblate/static/loader-bootstrap.js:674
 msgctxt "Short name of month"
 msgid "Oct"
 msgstr "اکتبر"
 
-#: weblate/static/loader-bootstrap.js:669
+#: weblate/static/loader-bootstrap.js:675
 msgctxt "Short name of month"
 msgid "Nov"
 msgstr "نوامبر"
 
-#: weblate/static/loader-bootstrap.js:670
+#: weblate/static/loader-bootstrap.js:676
 msgctxt "Short name of month"
 msgid "Dec"
 msgstr "دسامبر"
 
-#: weblate/static/loader-bootstrap.js:672
+#: weblate/static/loader-bootstrap.js:678
 msgid "Today"
 msgstr "امروز"
 
-#: weblate/static/loader-bootstrap.js:673
+#: weblate/static/loader-bootstrap.js:679
 msgid "Clear"
 msgstr "پاک کردن"
 
-#: weblate/static/loader-bootstrap.js:833
+#: weblate/static/loader-bootstrap.js:839
 msgid "Text copied to clipboard."
 msgstr "متن در حافظه موقت کپی شد."
 
-#: weblate/static/loader-bootstrap.js:836
+#: weblate/static/loader-bootstrap.js:842
 msgid "Please press Ctrl+C to copy."
 msgstr "برای رونوشت لطفا Ctrl+C را بفشارید."
 
-#: weblate/static/loader-bootstrap.js:860
+#: weblate/static/loader-bootstrap.js:866
 msgid "Search…"
 msgstr "جستجو…"
 
-#: weblate/static/loader-bootstrap.js:861
+#: weblate/static/loader-bootstrap.js:867
 msgid "Available:"
 msgstr "در دسترس:"
 
-#: weblate/static/loader-bootstrap.js:862
+#: weblate/static/loader-bootstrap.js:868
 msgid "Chosen:"
 msgstr "انتخاب شده:"
 
-#: weblate/static/loader-bootstrap.js:1121
+#: weblate/static/loader-bootstrap.js:1127
 msgid "Weblate is now scanning the repository, please be patient."
 msgstr ""
 

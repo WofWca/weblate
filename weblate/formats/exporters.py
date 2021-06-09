@@ -36,7 +36,7 @@ from translate.storage.tbx import tbxfile
 from translate.storage.tmx import tmxfile
 from translate.storage.xliff import xlifffile
 
-import weblate
+import weblate.utils.version
 from weblate.formats.external import XlsxFormat
 from weblate.formats.ttkit import TTKitFormat
 from weblate.trans.util import split_plural, xliff_string_to_rich
@@ -109,12 +109,6 @@ class BaseExporter:
 
     def create_unit(self, source):
         return self.storage.UnitClass(source)
-
-    def add_glossary_term(self, word):
-        """Add glossary term."""
-        unit = self.create_unit(self.string_filter(word.source))
-        self.add(unit, self.string_filter(word.target))
-        self.storage.addunit(unit)
 
     def add_units(self, units):
         for unit in units:
@@ -222,7 +216,7 @@ class PoExporter(BaseExporter):
         store.updateheader(
             add=True,
             language=self.language.code,
-            x_generator=f"Weblate {weblate.VERSION}",
+            x_generator=f"Weblate {weblate.utils.version.VERSION}",
             project_id_version=f"{self.language.name} ({self.project.name})",
             plural_forms=plural.plural_form,
             language_team=f"{self.language.name} <{self.url}>",
@@ -270,7 +264,7 @@ class PoXliffExporter(XMLExporter):
         try:
             converted_source = xliff_string_to_rich(unit.get_source_plurals())
             converted_target = xliff_string_to_rich(unit.get_target_plurals())
-        except (XMLSyntaxError, TypeError):
+        except (XMLSyntaxError, TypeError, KeyError):
             return output
         output.rich_source = converted_source
         output.set_rich_target(converted_target, self.language.code)

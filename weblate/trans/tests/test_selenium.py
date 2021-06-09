@@ -45,7 +45,6 @@ from selenium.webdriver.support.ui import Select, WebDriverWait
 
 import weblate.screenshots.views
 from weblate.fonts.tests.utils import FONT
-from weblate.glossary.models import Glossary, Term
 from weblate.lang.models import Language
 from weblate.trans.models import Change, Component, Project, Unit
 from weblate.trans.tests.test_models import BaseLiveServerTestCase
@@ -56,6 +55,7 @@ from weblate.trans.tests.utils import (
     create_test_user,
     get_test_file,
 )
+from weblate.utils.db import using_postgresql
 from weblate.vcs.ssh import get_key_data
 from weblate.wladmin.models import ConfigurationError
 
@@ -93,7 +93,7 @@ class SeleniumTests(BaseLiveServerTestCase, RegistrationTestMixin, TempDirMixin)
         # well inside a transaction, so we avoid using transactions for
         # tests. Otherwise we end up with no matches for the query.
         # See https://dev.mysql.com/doc/refman/5.6/en/innodb-fulltext-index.html
-        if settings.DATABASES["default"]["ENGINE"] == "django.db.backends.mysql":
+        if not using_postgresql():
             return False
         return super()._databases_support_transactions()
 
@@ -117,6 +117,7 @@ class SeleniumTests(BaseLiveServerTestCase, RegistrationTestMixin, TempDirMixin)
         # https://stackoverflow.com/a/50642913/225718
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--disable-gpu")
 
         # Force Chrome in English
         options.add_argument("--lang=en")
@@ -426,6 +427,17 @@ class SeleniumTests(BaseLiveServerTestCase, RegistrationTestMixin, TempDirMixin)
         )
         return project
 
+    def create_glossary(self, project, language):
+        glossary = project.glossaries[0].translation_set.get(language=language)
+        glossary.add_units(
+            None,
+            [
+                ("", "machine translation", "strojový překlad"),
+                ("", "project", "projekt"),
+            ],
+        )
+        return glossary
+
     def view_site(self):
         with self.wait_for_page_load():
             self.click(htmlid="return-to-weblate")
@@ -474,7 +486,7 @@ class SeleniumTests(BaseLiveServerTestCase, RegistrationTestMixin, TempDirMixin)
             "machine translation engines to get the best possible "
             "translations and applies them in this project."
         )
-        self.create_component()
+        project = self.create_component()
         language = Language.objects.get(code="cs")
 
         source = Unit.objects.get(
@@ -482,21 +494,7 @@ class SeleniumTests(BaseLiveServerTestCase, RegistrationTestMixin, TempDirMixin)
         ).source_unit
         source.explanation = "Help text for automatic translation tool"
         source.save()
-        glossary = Glossary.objects.get()
-        Term.objects.create(
-            user=None,
-            glossary=glossary,
-            language=language,
-            source="machine translation",
-            target="strojový překlad",
-        )
-        Term.objects.create(
-            user=None,
-            glossary=glossary,
-            language=language,
-            source="project",
-            target="projekt",
-        )
+        self.create_glossary(project, language)
         source.translation.component.alert_set.all().delete()
 
         def capture_unit(name, tab):
@@ -647,7 +645,6 @@ class SeleniumTests(BaseLiveServerTestCase, RegistrationTestMixin, TempDirMixin)
             "1"
         )
         self.driver.find_element(By.ID, "id_web").send_keys("https://weblate.org/")
-        self.driver.find_element(By.ID, "id_mail").send_keys("weblate@lists.cihar.com")
         self.driver.find_element(By.ID, "id_instructions").send_keys(
             "https://weblate.org/contribute/"
         )
@@ -742,7 +739,7 @@ class SeleniumTests(BaseLiveServerTestCase, RegistrationTestMixin, TempDirMixin)
         with self.wait_for_page_load():
             element.submit()
         with self.wait_for_page_load():
-            self.click("Manage users")
+            self.click("Access control")
         self.screenshot("manage-users.png")
         # Access control setings
         self.click(htmlid="projects-menu")
@@ -770,27 +767,6 @@ class SeleniumTests(BaseLiveServerTestCase, RegistrationTestMixin, TempDirMixin)
         self.screenshot("engage.png")
         with self.wait_for_page_load():
             self.click(htmlid="engage-project")
-
-        # Glossary
-        with self.wait_for_page_load():
-            self.click("Glossaries")
-        with self.wait_for_page_load():
-            self.click(self.driver.find_element(By.PARTIAL_LINK_TEXT, "Czech"))
-        self.click("Add new word")
-        self.driver.find_element(By.ID, "id_source").send_keys("language")
-        element = self.driver.find_element(By.ID, "id_target")
-        element.send_keys("jazyk")
-        with self.wait_for_page_load():
-            element.submit()
-        self.screenshot("glossary-edit.png")
-        self.click(htmlid="projects-menu")
-        with self.wait_for_page_load():
-            self.click("WeblateOrg")
-        with self.wait_for_page_load():
-            self.click("Glossaries")
-        self.screenshot("project-glossaries.png")
-        with self.wait_for_page_load():
-            self.click("WeblateOrg")
 
         # Addons
         self.click("Components")
@@ -922,7 +898,7 @@ class SeleniumTests(BaseLiveServerTestCase, RegistrationTestMixin, TempDirMixin)
             self.click("Czech")
         with self.wait_for_page_load():
             self.click(self.driver.find_element(By.PARTIAL_LINK_TEXT, "All strings"))
-        self.click("Other languages")
+        self.click(self.driver.find_element(By.PARTIAL_LINK_TEXT, "Other languages"))
         self.screenshot("secondary-language.png")
 
         # RTL translation
@@ -969,7 +945,6 @@ class SeleniumTests(BaseLiveServerTestCase, RegistrationTestMixin, TempDirMixin)
         # Add project
         self.driver.find_element(By.ID, "id_name").send_keys("WeblateOrg")
         self.driver.find_element(By.ID, "id_web").send_keys("https://weblate.org/")
-        self.driver.find_element(By.ID, "id_mail").send_keys("weblate@lists.cihar.com")
         self.driver.find_element(By.ID, "id_instructions").send_keys(
             "https://weblate.org/contribute/"
         )
@@ -1207,3 +1182,25 @@ class SeleniumTests(BaseLiveServerTestCase, RegistrationTestMixin, TempDirMixin)
         # Close modal dialog
         self.driver.find_element(By.ID, "id_extra_flags").send_keys(Keys.ESCAPE)
         time.sleep(0.5)
+
+    def test_glossary(self):
+        self.do_login()
+        project = self.create_component()
+        language = Language.objects.get(code="cs")
+        glossary = self.create_glossary(project, language)
+
+        self.driver.get(f"{self.live_server_url}{glossary.get_absolute_url()}")
+        self.screenshot("glossary-component.png")
+
+        with self.wait_for_page_load():
+            self.click("Czech")
+
+        with self.wait_for_page_load():
+            self.click("Browse")
+        self.screenshot("glossary-browse.png")
+
+        with self.wait_for_page_load():
+            self.click(self.driver.find_element(By.PARTIAL_LINK_TEXT, "projekt"))
+
+        self.click(htmlid="unit_tools_dropdown")
+        self.screenshot("glossary-tools.png")

@@ -163,3 +163,14 @@ class FlagTest(SimpleTestCase):
         self.test_replacements(
             "replacements:{COLOR-GREY}::{COLOR-GARNET}::{VARIABLE-01}:99"
         )
+
+    def test_escaped_values(self):
+        flags = Flags(r"""placeholders:"\\":"\"" """)
+        self.assertEqual(flags.get_value("placeholders"), ["\\", '"'])
+
+    def test_set(self):
+        flags = Flags()
+        flags.set_value("variant", "Long string with \"quotes\" and 'quotes'.")
+        self.assertEqual(
+            flags.format(), r'''variant:"Long string with \"quotes\" and 'quotes'."'''
+        )

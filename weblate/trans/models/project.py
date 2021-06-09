@@ -28,6 +28,7 @@ from django.urls import reverse
 from django.utils.functional import cached_property
 from django.utils.translation import gettext_lazy
 
+from weblate.formats.models import FILE_FORMATS
 from weblate.lang.models import Language
 from weblate.memory.tasks import import_memory
 from weblate.trans.defines import PROJECT_NAME_LENGTH
@@ -90,12 +91,6 @@ class Project(FastDeleteModelMixin, models.Model, URLMixin, PathMixin, CacheKeyM
     web = models.URLField(
         verbose_name=gettext_lazy("Project website"),
         help_text=gettext_lazy("Main website of translated project."),
-    )
-    mail = models.EmailField(
-        verbose_name=gettext_lazy("Mailing list"),
-        blank=True,
-        max_length=254,
-        help_text=gettext_lazy("Mailing list for translators."),
     )
     instructions = models.TextField(
         verbose_name=gettext_lazy("Translation instructions"),
@@ -213,9 +208,9 @@ class Project(FastDeleteModelMixin, models.Model, URLMixin, PathMixin, CacheKeyM
 
             # Update glossaries if needed
             if old.name != self.name:
-                self.glossary_set.filter(name__contains=old.name).update(
-                    name=Replace("name", Value(old.name), Value(self.name))
-                )
+                self.component_set.filter(
+                    is_glossary=True, name__contains=old.name
+                ).update(name=Replace("name", Value(old.name), Value(self.name)))
 
         # Update translation memory on enabled sharing
         if update_tm:
@@ -365,13 +360,14 @@ class Project(FastDeleteModelMixin, models.Model, URLMixin, PathMixin, CacheKeyM
     def all_repo_components(self):
         """Return list of all unique VCS components."""
         result = list(self.component_set.with_repo())
-        included = {component.get_repo_link_url() for component in result}
+        included = {component.get_repo_link_url().lower() for component in result}
 
         linked = self.component_set.filter(repo__startswith="weblate:")
         for other in linked:
-            if other.repo in included:
+            repo_url = other.repo.lower()
+            if repo_url in included:
                 continue
-            included.add(other.repo)
+            included.add(repo_url)
             result.append(other)
 
         return result
@@ -431,3 +427,34 @@ class Project(FastDeleteModelMixin, models.Model, URLMixin, PathMixin, CacheKeyM
         from weblate.auth.models import User
 
         return User.objects.all_admins(self).select_related("profile")
+
+    @cached_property
+    def child_components(self):
+        return self.component_set.all() | self.shared_components.all()
+
+    def scratch_create_component(
+        self, name, slug, source_language, file_format, has_template=True, **kwargs
+    ):
+        format_cls = FILE_FORMATS[file_format]
+        if has_template:
+            template = f"{source_language.code}.{format_cls.extension()}"
+        else:
+            template = ""
+        # Create component
+        return self.component_set.create(
+            file_format=file_format,
+            filemask=f"*.{format_cls.extension()}",
+            template=template,
+            vcs="local",
+            repo="local:",
+            source_language=source_language,
+            name=name,
+            slug=slug,
+            **kwargs,
+        )
+
+    @cached_property
+    def glossaries(self):
+        return [
+            component for component in self.child_components if component.is_glossary
+        ]

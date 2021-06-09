@@ -15,7 +15,7 @@ Weblate organizes translatable VCS content of project/components into a tree-lik
   the mask of files to translate.
 
 * Above :ref:`component` there are individual translations, handled automatically by Weblate as translation
-  files (which match the mask defined in :ref:`component`) appear in the VCS repository.
+  files (which match :ref:`component-filemask` defined in :ref:`component`) appear in the VCS repository.
 
 Weblate supports a wide range of translation formats (both bilingual and
 monolingual ones) supported by Translate Toolkit, see :ref:`formats`.
@@ -422,10 +422,10 @@ Intermediate language file for :ref:`monolingual`. In most cases this is a
 translation file provided by developers and is used when creating actual source
 strings.
 
-When set, the source translation is based on this file, but all others are
-based on :ref:`component-template`. In case the string is not translated in
-source translation, translating to other languages is prohibited. This provides
-:ref:`source-quality-gateway`.
+When set, the source strings are based on this file, but all other languages
+are based on :ref:`component-template`. In case the string is not translated
+into the source langugage, translating to other languages is prohibited. This
+provides :ref:`source-quality-gateway`.
 
 .. seealso::
 
@@ -517,6 +517,12 @@ Enforced checks
 
 List of checks which can not be ignored, see :ref:`enforcing-checks`.
 
+.. note::
+
+   Enforcing the check does not automatically enable it, you still should
+   enabled it using :ref:`custom-checks` in :ref:`component-check_flags` or
+   :ref:`additional`.
+
 .. _component-license:
 
 Translation license
@@ -556,6 +562,33 @@ Disable adding new translations
 .. seealso::
 
    :ref:`adding-translation`.
+
+.. _component-manage_units:
+
+Manage strings
+++++++++++++++
+
+.. versionadded:: 4.5
+
+Configures whether users in Weblate will be allowed to add new strings and
+remove existing ones. Adjust this to match your localization workflow - how the
+new strings are supposed to be introduced.
+
+For bilingual formats, the strings are typically extracted from the source code
+(for example by using :program:`xgettext`) and adding new strings in Weblate
+should be disabled (they would be discarded next time you update the
+translation files). In Weblate you can manage strings for every translation and
+it does not enforce the strings in all translations to be consistent.
+
+For monolingual formats, the strings are managed only on source language and
+are automatically added or removed in the translations. The strings appear in
+the translation files once they are translated.
+
+.. seealso::
+
+   :ref:`bimono`,
+   :ref:`adding-new-strings`,
+   :http:post:`/api/translations/(string:project)/(string:component)/(string:language)/units/`
 
 .. _component-language_code_style:
 
@@ -633,7 +666,7 @@ Age of changes to commit
 ++++++++++++++++++++++++
 
 Sets how old changes (in hours) are to get before they are committed by
-background task or :djadmin:`commit_pending` management command.  All
+background task or :djadmin:`commit_pending` management command. All
 changes in a component are committed once there is at least one older than
 this period.
 
@@ -741,6 +774,47 @@ Default value can be changed by :setting:`DEFAULT_RESTRICTED_COMPONENT`.
 
    This applies to project managers as well - please make sure you will not
    loose access to the component after toggling the status.
+
+.. _component-links:
+
+Share in projects
++++++++++++++++++
+
+You can choose additional projects where the component will be visible. This
+can be useful for shared libraries which you use in several projects.
+
+.. note::
+
+   Sharing component doesn't change its access control. It makes it only
+   visible when browsing other projects. User still need to have access to the
+   actual component in order to be able to browse or translate it.
+
+
+.. _component-is_glossary:
+
+Use as a glossary
++++++++++++++++++
+
+.. versionadded:: 4.5
+
+Allows using this component as a glossary. You can configure how it will be
+listed using :ref:`component-glossary_color`.
+
+The glossary will be accessible in all projects defined by :ref:`component-links`.
+
+It is recommended to enable :ref:`component-manage_units` on glossaries in
+order to allow adding new words to them.
+
+.. seealso::
+
+   :ref:`glossary`
+
+.. _component-glossary_color:
+
+Glossary color
+++++++++++++++
+
+Display color for a glossary used when showing word matches.
 
 .. _markup:
 

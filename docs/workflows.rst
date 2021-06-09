@@ -31,9 +31,9 @@ Untranslated
     Translation is empty, it might or not be stored in the file, depending
     on the file format.
 Needs editing
-    Translation needs editing, this is usually the result of a source string change.
+    Translation needs editing, this is usually the result of a source string change, fuzzy matching or translator action.
     The translation is stored in the file, depending on the file format it might
-    be marked as needing edit (for example as it gets a fuzzy flag in the Gettext file).
+    be marked as needing edit (for example as it gets a ``fuzzy`` flag in the Gettext file).
 Waiting for review
     Translation is made, but not reviewed. It is stored in the file as a valid
     translation.
@@ -43,6 +43,19 @@ Approved
     it.
 Suggestions
     Suggestions are stored in Weblate only and not in the translation file.
+
+The states are represented in the translation files when possible.
+
+.. hint::
+
+   In case file format you use does not support storing states, you might want
+   to use :ref:`addon-weblate.flags.same_edit` addon to flag unchanged strings
+   as needing editing.
+
+.. seealso::
+
+   :ref:`fmt_capabs`,
+   :ref:`workflows`
 
 
 Direct translation
@@ -145,7 +158,7 @@ Turning on reviews
 
 Reviews can be turned on in the project configuration, from the
 :guilabel:`Workflow` subpage of project settings (to be found in the
-:guilabel:`Manage` → `Settings` menu):
+:guilabel:`Manage` → :guilabel:`Settings` menu):
 
 .. image:: images/project-workflow.png
 

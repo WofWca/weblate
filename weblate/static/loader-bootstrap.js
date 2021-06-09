@@ -76,6 +76,8 @@ jQuery.fn.extend({
         this.focus();
       }
       this.dispatchEvent(new Event("input"));
+      /* Zen editor still relies on jQuery here */
+      $(this).change();
     });
   },
 
@@ -354,6 +356,7 @@ function initHighlight(root) {
   }
   root.querySelectorAll(".highlight-editor").forEach(function (editor) {
     var parent = editor.parentElement;
+    var hasFocus = editor == document.activeElement;
 
     if (parent.classList.contains("editor-wrap")) {
       return;
@@ -385,13 +388,16 @@ function initHighlight(root) {
 
     /* Add editor to wrapper */
     wrapper.appendChild(editor);
+    if (hasFocus) {
+      editor.focus();
+    }
 
     /* Content synchronisation and highlighting */
     var languageMode = Prism.languages[mode];
     if (editor.classList.contains("translation-editor")) {
       let placeables = editor.getAttribute("data-placeables");
       let extension = {
-        hlspace: /  +/,
+        hlspace: /  +| +$|^ +| +\n|\n +/,
       };
       if (placeables) {
         extension.placeable = RegExp(placeables);

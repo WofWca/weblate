@@ -51,12 +51,12 @@ class Check:
 
     def should_skip(self, unit):
         """Check whether we should skip processing this unit."""
-        # Is this disabled by default
-        if self.default_disabled and self.enable_string not in unit.all_flags:
-            return True
-
         # Is this check ignored
         if self.ignore_string in unit.all_flags:
+            return True
+
+        # Is this disabled by default
+        if self.default_disabled and self.enable_string not in unit.all_flags:
             return True
 
         return False
@@ -86,15 +86,16 @@ class Check:
 
     def check_target_unit(self, sources, targets, unit):
         """Check single unit, handling plurals."""
+        source = sources[0]
         # Check singular
-        if self.check_single(sources[0], targets[0], unit):
+        if self.check_single(source, targets[0], unit):
             return True
         # Do we have more to check?
-        if len(sources) == 1:
-            return False
+        if len(sources) > 1:
+            source = sources[1]
         # Check plurals against plural from source
         for target in targets[1:]:
-            if self.check_single(sources[1], target, unit):
+            if self.check_single(source, target, unit):
                 return True
         # Check did not fire
         return False
@@ -172,6 +173,48 @@ class Check:
         pattern = re.compile("|".join(re.escape(key) for key in replacements.keys()))
 
         return lambda text: pattern.sub(lambda m: replacements[m.group(0)], text)
+
+    def handle_batch(self, unit, component):
+        component.batched_checks.add(self.check_id)
+        return self.check_id in unit.all_checks_names
+
+    def check_component(self, component):
+        return []
+
+    def perform_batch(self, component):
+        from weblate.checks.models import Check
+
+        handled = set()
+        changed = False
+        create = []
+        for unit in self.check_component(component):
+            # Handle ignore flags
+            if self.should_skip(unit):
+                continue
+            handled.add(unit.pk)
+
+            # Check is already there
+            if self.check_id in unit.all_checks_names:
+                continue
+
+            create.append(Check(unit=unit, dismissed=False, check=self.check_id))
+            changed = True
+
+        Check.objects.bulk_create(create, batch_size=500, ignore_conflicts=True)
+
+        # Delete stale checks
+        changed |= (
+            Check.objects.filter(
+                unit__translation__component=component,
+                check=self.check_id,
+            )
+            .exclude(unit_id__in=handled)
+            .delete()[0]
+        )
+
+        # Invalidate stats in case there were changes
+        if changed:
+            component.invalidate_cache()
 
 
 class TargetCheck(Check):

@@ -13,10 +13,6 @@
             {% if change.project %}
             <a href="{{ change.project.get_absolute_url }}">{{ change.project }}</a>
             {% endif %}
-            {% if change.glossary_term %}
-            — <a href="{{ change.glossary_term.get_parent_url }}">{{ change.glossary_term.language }}</a>
-            {% include "snippets/glossary-badge.html" with glossary=change.glossary_term.glossary %}
-            {% endif %}
             {% if change.component %}
             / <a href="{{ change.component.get_absolute_url }}">{{ change.component.name }}</a>
             {% endif %}
@@ -27,14 +23,16 @@
     </div>
     <div class="col-xs-10 history-data">
         {% if not in_email %}
-        {% perm 'unit.edit' change.unit as user_can_translate %}
         <div class="btn-float pull-right flip">
             <a class="btn btn-link" href="{{ change.get_absolute_url }}" title="{% trans "View details" %}">{% icon "magnify-plus-outline.svg" %}</a>
             {% if debug %}
             <a class="btn btn-link" href="{% url 'show_change' pk=change.pk %}" title="{% trans "View notification" %}">{% icon "bell.svg" %}</a>
             {% endif %}
-            {% if change.can_revert and user_can_translate %}
-            <a class="btn btn-link" href="{{ change.translation.get_translate_url}}?{% if search_url %}{{ search_url }}&amp;offset={{ offset }}&amp;{% endif %}checksum={{ change.unit.checksum }}&amp;revert={{ change.id }}" title="{% trans "Revert" %}">{% icon "undo.svg" %}</a>
+            {% if change.can_revert %}
+              {% perm 'unit.edit' change.unit as user_can_translate %}
+              {% if user_can_translate %}
+                <a class="btn btn-link" href="{{ change.translation.get_translate_url}}?{% if search_url %}{{ search_url }}&amp;offset={{ offset }}&amp;{% endif %}checksum={{ change.unit.checksum }}&amp;revert={{ change.id }}" title="{% trans "Revert" %}">{% icon "undo.svg" %}</a>
+              {% endif %}
             {% endif %}
         </div>
         {% endif %}
@@ -56,8 +54,6 @@
                 {% format_translation change.unit.source change.unit.translation.component.source_language %}
                 <label>{{ change.unit.translation.language }}</label>
                 {% format_translation change.target change.unit.translation.language change.unit.translation.plural %}
-            {% elif change.show_content and change.glossary_term %}
-                {% format_translation change.target change.glossary_term.language  %}
             {% elif change.show_source %}
                 {% format_translation change.target change.component.source_language diff=change.old %}
             {% elif change.target %}

@@ -18,9 +18,11 @@
 #
 
 import re
+from collections import defaultdict
 from datetime import date
 from uuid import uuid4
 
+from diff_match_patch import diff_match_patch
 from django import template
 from django.contrib.humanize.templatetags.humanize import intcomma
 from django.template.loader import render_to_string
@@ -45,12 +47,12 @@ from weblate.trans.models import (
     Translation,
 )
 from weblate.trans.models.translation import GhostTranslation
-from weblate.trans.simplediff import html_diff
 from weblate.trans.util import get_state_css, split_plural
 from weblate.utils.docs import get_doc_url
 from weblate.utils.hash import hash_to_checksum
 from weblate.utils.markdown import render_markdown
-from weblate.utils.stats import BaseStats, ProjectLanguage
+from weblate.utils.messages import get_message_kind as get_message_kind_impl
+from weblate.utils.stats import BaseStats, GhostProjectLanguageStats, ProjectLanguage
 from weblate.utils.views import SORT_CHOICES
 
 register = template.Library()
@@ -59,14 +61,10 @@ HIGHLIGTH_SPACE = '<span class="hlspace">{}</span>{}'
 SPACE_TEMPLATE = '<span class="{}"><span class="sr-only">{}</span></span>'
 SPACE_SPACE = SPACE_TEMPLATE.format("space-space", " ")
 SPACE_NL = HIGHLIGTH_SPACE.format(SPACE_TEMPLATE.format("space-nl", ""), "<br />")
-SPACE_TAB = HIGHLIGTH_SPACE.format(SPACE_TEMPLATE.format("space-tab", "\t"), "")
 
-HL_CHECK = (
-    '<span class="hlcheck">' '<span class="highlight-number"></span>' "{0}" "</span>"
-)
+GLOSSARY_TEMPLATE = """<span class="glossary-term" title="{}">"""
 
 WHITESPACE_RE = re.compile(r"(  +| $|^ )")
-NEWLINES_RE = re.compile(r"\r\n|\r|\n")
 TYPE_MAPPING = {True: "yes", False: "no", None: "unknown"}
 # Mapping of status report flags to names
 NAME_MAPPING = {
@@ -96,67 +94,150 @@ SOURCE_LINK = """
 """
 
 
-def replace_whitespace(match):
-    spaces = match.group(1).replace(" ", SPACE_SPACE)
-    return HIGHLIGTH_SPACE.format(spaces, "")
+class Formatter:
+    def __init__(self, idx, value, unit, terms, diff, search_match, match):
+        # Inputs
+        self.idx = idx
+        self.value = value
+        self.unit = unit
+        self.terms = terms
+        self.diff = diff
+        self.search_match = search_match
+        self.match = match
+        # Tags output
+        self.tags = [[] for i in range(len(value) + 1)]
+        self.dmp = diff_match_patch()
 
+    def parse(self):
+        if self.diff:
+            self.parse_diff()
+        if self.unit:
+            self.parse_highlight()
+        if self.terms:
+            self.parse_glossary()
+        if self.search_match:
+            self.parse_search()
+        self.parse_whitespace()
 
-def fmt_whitespace(value):
-    """Format whitespace so that it is more visible."""
-    # Highlight exta whitespace
-    value = WHITESPACE_RE.sub(replace_whitespace, value)
+    def parse_diff(self):
+        """Highlights diff, including extra whitespace."""
+        dmp = self.dmp
+        diff = dmp.diff_main(self.diff[self.idx], self.value)
+        dmp.diff_cleanupSemantic(diff)
+        offset = 0
+        for op, data in diff:
+            if op == dmp.DIFF_DELETE:
+                self.tags[offset].append(
+                    "<del>{}</del>".format(SPACE_SPACE if data == " " else escape(data))
+                )
+            elif op == dmp.DIFF_INSERT:
+                self.tags[offset].append("<ins>")
+                if data == " ":
+                    # This matches SPACE_SPACE
+                    self.tags[offset].append(
+                        '<span class="space-space"><span class="sr-only">'
+                    )
+                offset += len(data)
+                if data == " ":
+                    self.tags[offset].append("</span></span>")
+                self.tags[offset].append("</ins>")
+            elif op == dmp.DIFF_EQUAL:
+                offset += len(data)
 
-    # Highlight tabs
-    value = value.replace("\t", SPACE_TAB.format(gettext("Tab character")))
-
-    # Highlight whitespace inside tags (ins/del)
-    value = value.replace("> <", f">{SPACE_SPACE}<")
-
-    return value
-
-
-def fmt_diff(value, diff, idx):
-    """Format diff if there is any."""
-    if diff is None:
-        return escape(value)
-    return html_diff((diff[idx]), value)
-
-
-def fmt_highlights(raw_value, value, unit):
-    """Format check highlights."""
-    if unit is None:
-        return value
-    highlights = highlight_string(raw_value, unit)
-    start_search = 0
-    for highlight in highlights:
-        htext = escape(highlight[2])
-        find_highlight = value.find(htext, start_search)
-        if find_highlight >= 0:
-            newpart = HL_CHECK.format(htext)
-            next_part = value[(find_highlight + len(htext)) :]
-            value = value[:find_highlight] + newpart + next_part
-            start_search = find_highlight + len(newpart)
-    return value
-
-
-def fmt_search(value, search_match, match):
-    """Format search match."""
-    if search_match:
-        search_match = escape(search_match)
-        if match == "search":
-            # Since the search ignored case, we need to highlight any
-            # combination of upper and lower case we find.
-            return re.sub(
-                r"(" + re.escape(search_match) + ")",
-                r'<span class="hlmatch">\1</span>',
-                value,
-                flags=re.IGNORECASE,
+    def parse_highlight(self):
+        """Highlights unit placeables."""
+        highlights = highlight_string(self.value, self.unit)
+        for start, end, _content in highlights:
+            self.tags[start].append(
+                '<span class="hlcheck"><span class="highlight-number"></span>'
             )
-        if match in ("replacement", "replaced"):
-            return value.replace(
-                search_match, f'<span class="{match}">{search_match}</span>'
+            self.tags[end].append("</span>")
+
+    @staticmethod
+    def format_terms(terms):
+        forbidden = []
+        nontranslatable = []
+        translations = []
+        for term in terms:
+            flags = term.all_flags
+            target = escape(term.target)
+            if "forbidden" in flags:
+                forbidden.append(target)
+            elif "read-only" in flags:
+                nontranslatable.append(target)
+            else:
+                translations.append(target)
+
+        output = []
+        if forbidden:
+            output.append(gettext("Forbidden translation: %s") % ", ".join(forbidden))
+        if nontranslatable:
+            output.append(gettext("Not-translatable: %s") % ", ".join(nontranslatable))
+        if translations:
+            output.append(gettext("Glossary translation: %s") % ", ".join(translations))
+        return "; ".join(output)
+
+    def parse_glossary(self):
+        """Highlights glossary entries."""
+        for htext, entries in self.terms.items():
+            for match in re.finditer(
+                r"\b{}\b".format(re.escape(htext)), self.value, re.IGNORECASE
+            ):
+                self.tags[match.start()].append(
+                    GLOSSARY_TEMPLATE.format(self.format_terms(entries))
+                )
+                self.tags[match.end()].append("</span>")
+
+    def parse_search(self):
+        """Highlights search matches."""
+        tag = self.match
+        if self.match == "search":
+            tag = "hlmatch"
+
+        start_tag = f'<span class="{tag}">'
+        end_tag = "</span>"
+
+        for match in re.finditer(
+            re.escape(self.search_match), self.value, flags=re.IGNORECASE
+        ):
+            self.tags[match.start()].append(start_tag)
+            self.tags[match.end()].append(end_tag)
+
+    def parse_whitespace(self):
+        """Highlight whitespaces."""
+        for match in WHITESPACE_RE.finditer(self.value):
+            self.tags[match.start()].append(
+                '<span class="hlspace"><span class="space-space"><span class="sr-only">'
             )
-    return value
+            self.tags[match.end()].append("</span></span></span>")
+
+        for match in re.finditer("\t", self.value):
+            self.tags[match.start()].append(
+                '<span class="hlspace"><span class="space-tab"><span class="sr-only">'
+            )
+            self.tags[match.end()].append("</span></span></span>")
+
+    def format(self):
+        tags = self.tags
+        value = self.value
+        newline = SPACE_NL.format(gettext("New line"))
+        output = []
+        was_cr = False
+        newlines = {"\r", "\n"}
+        for pos, char in enumerate(value):
+            output.append("".join(tags[pos]))
+            if char in newlines:
+                is_cr = char == "\r"
+                if was_cr and not is_cr:
+                    # treat "\r\n" as single newline
+                    continue
+                was_cr = is_cr
+                output.append(newline)
+            else:
+                output.append(escape(char))
+        # Trailing tags
+        output.append("".join(tags[len(value)]))
+        return mark_safe("".join(output))
 
 
 @register.inclusion_tag("snippets/format-translation.html")
@@ -171,6 +252,7 @@ def format_translation(
     num_plurals=2,
     unit=None,
     match="search",
+    glossary=None,
 ):
     """Nicely formats translation text possibly handling plurals or diff."""
     # Split plurals to separate strings
@@ -183,9 +265,6 @@ def format_translation(
     if int(num_plurals) <= 1:
         plurals = plurals[-1:]
 
-    # Newline concatenator
-    newline = SPACE_NL.format(gettext("New line"))
-
     # Split diff plurals
     if diff is not None:
         diff = split_plural(diff)
@@ -193,34 +272,17 @@ def format_translation(
         while len(diff) < len(plurals):
             diff.append(diff[0])
 
+    terms = defaultdict(list)
+    for term in glossary or []:
+        terms[term.source].append(term)
+
     # We will collect part for each plural
     parts = []
     has_content = False
 
-    for idx, raw_value in enumerate(plurals):
-        # HTML escape
-        value = raw_value
-
-        # Content of the Copy to clipboard button
-        copy = escape(value)
-
-        # Format diff if there is any
-        value = fmt_diff(value, diff, idx)
-
-        # Create span for checks highlights
-        value = fmt_highlights(raw_value, value, unit)
-
-        # Format search term
-        value = fmt_search(value, search_match, match)
-
-        # Normalize newlines
-        value = NEWLINES_RE.sub("\n", value)
-
-        # Split string
-        paras = value.split("\n")
-
-        # Format whitespace in each paragraph
-        paras = [fmt_whitespace(p) for p in paras]
+    for idx, value in enumerate(plurals):
+        formatter = Formatter(idx, value, unit, terms, diff, search_match, match)
+        formatter.parse()
 
         # Show label for plural (if there are any)
         title = ""
@@ -228,9 +290,9 @@ def format_translation(
             title = plural.get_plural_name(idx)
 
         # Join paragraphs
-        content = mark_safe(newline.join(paras))
+        content = formatter.format()
 
-        parts.append({"title": title, "content": content, "copy": copy})
+        parts.append({"title": title, "content": content, "copy": escape(value)})
         has_content |= bool(content)
 
     return {
@@ -555,10 +617,6 @@ def announcements(context, project=None, component=None, language=None):
     for announcement in Announcement.objects.context_filter(
         project, component, language
     ):
-        can_delete = user.has_perm(
-            "component.edit", announcement.component
-        ) or user.has_perm("project.edit", announcement.project)
-
         ret.append(
             render_to_string(
                 "message.html",
@@ -566,7 +624,7 @@ def announcements(context, project=None, component=None, language=None):
                     "tags": " ".join((announcement.category, "announcement")),
                     "message": render_markdown(announcement.message),
                     "announcement": announcement,
-                    "can_delete": can_delete,
+                    "can_delete": user.has_perm("announcement.delete", announcement),
                 },
             )
         )
@@ -729,18 +787,21 @@ def indicate_alerts(context, obj):
         project = obj
     elif isinstance(obj, ProjectLanguage):
         project = obj.project
+    elif isinstance(obj, GhostProjectLanguageStats):
+        component = obj.component
+        project = component.project
 
-    if context["user"].has_perm("project.edit", project):
+    if project is not None and context["user"].has_perm("project.edit", project):
         result.append(
             ("state/admin.svg", gettext("You administrate this project."), None)
         )
 
-    if translation:
+    if translation is not None:
         result.extend(translation_alerts(translation))
 
-    if component:
+    if component is not None:
         result.extend(component_alerts(component))
-    elif project:
+    elif project is not None:
         result.extend(project_alerts(project))
 
     if getattr(obj, "is_ghost", False):
@@ -767,6 +828,15 @@ def indicate_alerts(context, obj):
                 )
             )
 
+    if getattr(obj, "is_shared", False):
+        result.append(
+            (
+                "state/share.svg",
+                gettext("Shared from the %s project.") % obj.is_shared,
+                None,
+            )
+        )
+
     return {"icons": result, "component": component, "project": project}
 
 
@@ -777,7 +847,7 @@ def markdown(text):
 
 @register.filter
 def choiceval(boundfield):
-    """Get literal value from field's choices.
+    """Get literal value from a field's choices.
 
     Empty value is returned if value is not selected or invalid.
     """
@@ -788,13 +858,7 @@ def choiceval(boundfield):
         return gettext("enabled")
     if not hasattr(boundfield.field, "choices"):
         return value
-    choices = list(boundfield.field.choices)
-    if choices and hasattr(choices[0][0], "value"):
-        # Django 3.1+ yields ModelChoiceIteratorValue
-        choices = {choice.value: value for choice, value in choices}
-    else:
-        # Django 3.0
-        choices = dict(choices)
+    choices = {str(choice): value for choice, value in boundfield.field.choices}
     if isinstance(value, list):
         return ", ".join(choices.get(val, val) for val in value)
     return choices.get(value, value)
@@ -831,6 +895,11 @@ def sort_choices():
 @register.simple_tag(takes_context=True)
 def render_alert(context, alert):
     return alert.render(user=context["user"])
+
+
+@register.simple_tag
+def get_message_kind(tags):
+    return get_message_kind_impl(tags)
 
 
 @register.simple_tag

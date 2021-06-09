@@ -428,7 +428,7 @@ It is absolutely critical to reduce issues when installing that the setting
 ``innodb_file_per_table`` is set properly and MySQL/MariaDB restarted before
 you start your Weblate install.
 
-.. code-block:: sh
+.. code-block:: ini
 
    [mysqld]
    character-set-server = utf8mb4
@@ -450,6 +450,11 @@ you start your Weblate install.
    In case you are getting ``#1071 - Specified key was too long; max key length
    is 767 bytes`` error, please update your configuration to include the ``innodb``
    settings above and restart your install.
+
+.. hint::
+
+   In case you are getting ``#2006 - MySQL server has gone away`` error,
+   configuring :setting:`django:CONN_MAX_AGE` might help.
 
 Configuring Weblate to use MySQL/MariaDB
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -500,7 +505,7 @@ server.
 
 The mail server setup is configured using these settings:
 :setting:`django:EMAIL_HOST`, :setting:`django:EMAIL_HOST_PASSWORD`,
-:setting:`django:EMAIL_USE_TLS`, :setting:`django:EMAIL_USE_TLS`,
+:setting:`django:EMAIL_USE_TLS`, :setting:`django:EMAIL_USE_SSL`,
 :setting:`django:EMAIL_HOST_USER` and :setting:`django:EMAIL_PORT`. Their
 names are quite self-explanatory, but you can find more info in the
 Django documentation.
@@ -1318,7 +1323,7 @@ Sample configuration for Apache
 It is recommended to use prefork MPM when using WSGI with Weblate.
 
 The following configuration runs Weblate as WSGI, you need to have enabled
-mod_wsgi (available as :file:`weblate/examples/apache.conf`):
+``mod_wsgi`` (available as :file:`weblate/examples/apache.conf`):
 
 .. literalinclude:: ../../weblate/examples/apache.conf
     :language: apache
@@ -1353,14 +1358,12 @@ The following configuration runs Weblate in Gunicorn and Apache 2.4
 Running Weblate under path
 ++++++++++++++++++++++++++
 
-.. versionchanged:: 1.3
-
-    This is supported since Weblate 1.3.
+.. versionadded:: 1.3
 
 It is recommended to use prefork MPM when using WSGI with Weblate.
 
 A sample Apache configuration to serve Weblate under ``/weblate``. Again using
-mod_wsgi (also available as :file:`weblate/examples/apache-path.conf`):
+``mod_wsgi`` (also available as :file:`weblate/examples/apache-path.conf`):
 
 .. literalinclude:: ../../weblate/examples/apache-path.conf
     :language: apache
@@ -1436,7 +1439,8 @@ Environment configuration to be placed as :file:`/etc/default/celery-weblate`:
 .. literalinclude:: ../../weblate/examples/celery-weblate.conf
     :language: sh
 
-Logrotate configuration to be placed as :file:`/etc/logrotate.d/celery`:
+Additional configuration to rotate Celery logs using :command:`logrotate` to be
+placed as :file:`/etc/logrotate.d/celery`:
 
 .. literalinclude:: ../../weblate/examples/celery-weblate.logrotate
     :language: text

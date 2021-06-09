@@ -32,7 +32,6 @@ from django.utils.http import urlencode
 from django.utils.translation import gettext as _
 from django.views.generic.edit import CreateView
 
-from weblate.formats.models import FILE_FORMATS
 from weblate.trans.forms import (
     ComponentBranchForm,
     ComponentCreateForm,
@@ -55,20 +54,7 @@ from weblate.vcs.models import VCS_REGISTRY
 
 
 def scratch_create_component(project, name, slug, source_language, file_format):
-    format_cls = FILE_FORMATS[file_format]
-    template = f"{source_language.code}.{format_cls.extension()}"
-    # Create component
-    return Component.objects.create(
-        file_format=file_format,
-        filemask=f"*.{format_cls.extension()}",
-        template=template,
-        vcs="local",
-        repo="local:",
-        project=project,
-        source_language=source_language,
-        name=name,
-        slug=slug,
-    )
+    return project.scratch_create_component(name, slug, source_language, file_format)
 
 
 class BaseCreateView(CreateView):
@@ -228,6 +214,9 @@ class CreateComponent(BaseCreateView):
 
     def form_valid(self, form):
         if self.stage == "create":
+            form.instance.manage_units = (
+                bool(form.instance.template) or form.instance.file_format == "tbx"
+            )
             result = super().form_valid(form)
             self.object.post_create(self.request.user)
             return result

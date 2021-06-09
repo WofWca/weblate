@@ -383,6 +383,10 @@ class ComponentTest(RepoTestCase):
         component = self.create_winrc()
         self.verify_component(component, 2, "cs-CZ", 4)
 
+    def test_create_tbx(self):
+        component = self.create_tbx()
+        self.verify_component(component, 2, "cs", 4, unit="address bar")
+
     def test_link(self):
         component = self.create_link()
         self.verify_component(component, 4, "cs", 4)
@@ -498,7 +502,7 @@ class ComponentDeleteTest(RepoTestCase):
         self.assertTrue(os.path.exists(component.full_path))
         component.delete()
         self.assertFalse(os.path.exists(component.full_path))
-        self.assertEqual(0, Component.objects.count())
+        self.assertEqual(1, Component.objects.count())
 
     def test_delete_link(self):
         component = self.create_link()
@@ -832,6 +836,7 @@ class ComponentErrorTest(RepoTestCase):
 
     def test_invalid_templatename(self):
         self.component.template = "foo.bar"
+        self.component.drop_template_store_cache()
 
         with self.assertRaises(FileParseError):
             self.component.template_store
@@ -861,6 +866,7 @@ class ComponentErrorTest(RepoTestCase):
         testfile = os.path.join(self.component.full_path, "ts-mono", "en.ts")
         with open(testfile, "a") as handle:
             handle.write("CHANGE")
+        self.component.drop_template_store_cache()
 
         with self.assertRaises(FileParseError):
             self.component.template_store

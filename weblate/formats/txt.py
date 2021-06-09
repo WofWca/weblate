@@ -124,7 +124,7 @@ class AppStoreParser(MultiParser):
         parts = filename.rsplit("changelogs/", 1)
         if len(parts) == 2:
             try:
-                return -int(parts[1].split(".")[0])
+                return "-{}".format(int(parts[1].split(".")[0]))
             except ValueError:
                 pass
         return filename
@@ -183,6 +183,7 @@ class AppStoreFormat(TranslationFormat):
     monolingual = True
     unit_class = TextUnit
     simple_filename = False
+    language_format = "java"
 
     @classmethod
     def load(cls, storefile, template_store):
@@ -219,8 +220,12 @@ class AppStoreFormat(TranslationFormat):
 
     @classmethod
     def is_valid_base_for_new(
-        cls, base, monolingual, errors: Optional[List] = None, fast: bool = False
-    ):
+        cls,
+        base: str,
+        monolingual: bool,
+        errors: Optional[List] = None,
+        fast: bool = False,
+    ) -> bool:
         """Check whether base is valid."""
         if not base:
             return True

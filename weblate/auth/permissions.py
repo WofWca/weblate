@@ -85,7 +85,7 @@ def check_permission(user, permission, obj):
             for permissions, langs in user.component_permissions[obj.component_id]
         )
     raise ValueError(
-        f"Not supported type for permission check: {obj.__class__.__name__}"
+        f"Permission {permission} does not support: {obj.__class__.__name__}"
     )
 
 
@@ -182,6 +182,7 @@ def check_unit_review(user, permission, obj, skip_enabled=False):
 
 @register_perm("unit.edit", "suggestion.accept")
 def check_edit_approved(user, permission, obj):
+    component = None
     if isinstance(obj, Unit):
         unit = obj
         obj = unit.translation
@@ -192,26 +193,56 @@ def check_edit_approved(user, permission, obj):
             and not check_unit_review(user, "unit.review", obj, skip_enabled=True)
         ):
             return False
-    if isinstance(obj, Translation) and obj.is_readonly:
-        return False
+    if isinstance(obj, Translation):
+        component = obj.component
+        if obj.is_readonly:
+            return False
+    elif isinstance(obj, Component):
+        component = obj
+    if component is not None and component.is_glossary:
+        permission = "glossary.edit"
     return check_can_edit(user, permission, obj)
+
+
+def check_manage_units(translation: Translation, component: Component) -> bool:
+    source = translation.is_source
+    template = component.has_template()
+    # Add only to source in monolingual
+    if not source and template:
+        return False
+    # Check if adding is generally allowed
+    if not component.manage_units or (template and not component.edit_template):
+        return False
+    return True
 
 
 @register_perm("unit.delete")
 def check_unit_delete(user, permission, obj):
     if isinstance(obj, Unit):
         obj = obj.translation
-    if not obj.is_source or obj.is_readonly:
+    component = obj.component
+    # Check if removing is generally allowed
+    if not check_manage_units(obj, component):
         return False
+    if component.is_glossary:
+        permission = "glossary.delete"
     return check_can_edit(user, permission, obj)
 
 
 @register_perm("unit.add")
 def check_unit_add(user, permission, translation):
-    if not translation.is_source or translation.is_readonly:
+    component = translation.component
+    # Check if adding is generally allowed
+    if not check_manage_units(translation, component):
         return False
-    if not translation.component.file_format_cls.can_add_unit:
+
+    # Does file format support adding?
+    if not component.file_format_cls.can_add_unit:
         return False
+
+    if component.is_glossary:
+        permission = "glossary.add"
+
     return check_can_edit(user, permission, translation)
 
 
@@ -243,7 +274,7 @@ def check_suggestion_vote(user, permission, obj):
 def check_suggestion_add(user, permission, obj):
     if isinstance(obj, Unit):
         obj = obj.translation
-    if not obj.component.enable_suggestions:
+    if not obj.component.enable_suggestions or obj.is_readonly:
         return False
     # Check contributor agreement
     if obj.component.agreement and not ContributorAgreement.objects.has_agreed(
@@ -257,15 +288,20 @@ def check_suggestion_add(user, permission, obj):
 def check_contribute(user, permission, translation):
     # Bilingual source translations
     if translation.is_source and not translation.is_template:
-        return (
-            translation.is_source
-            and not translation.component.template
-            and hasattr(translation.component.file_format_cls, "update_bilingual")
-            and user.has_perm("source.edit", translation)
-        )
+        return hasattr(
+            translation.component.file_format_cls, "update_bilingual"
+        ) and user.has_perm("source.edit", translation)
+    if translation.component.is_glossary:
+        permission = "glossary.upload"
     return check_can_edit(user, permission, translation) and (
+        # Normal upload
         check_edit_approved(user, "unit.edit", translation)
+        # Suggestion upload
         or check_suggestion_add(user, "suggestion.add", translation)
+        # Add upload
+        or check_suggestion_add(user, "unit.add", translation)
+        # Source upload
+        or (translation.is_source and user.has_perm("source.edit", translation))
     )
 
 
@@ -300,6 +336,13 @@ def check_translation_delete(user, permission, obj):
     return check_permission(user, permission, obj)
 
 
+@register_perm("reports.view", "change.download")
+def check_possibly_global(user, permission, obj):
+    if obj is None:
+        return user.is_superuser
+    return check_permission(user, permission, obj)
+
+
 @register_perm("meta:vcs.status")
 def check_repository_status(user, permission, obj):
     return (
@@ -327,3 +370,22 @@ def check_billing(user, permission, obj):
             return False
 
     return check_permission(user, "project.permissions", obj)
+
+
+# This does not exist for real
+@register_perm("announcement.delete")
+def check_announcement_delete(user, permission, obj):
+    return (
+        user.is_superuser
+        or (obj.component and check_permission(user, "component.edit", obj.component))
+        or (obj.project and check_permission(user, "project.edit", obj.project))
+    )
+
+
+# This does not exist for real
+@register_perm("unit.flag")
+def check_unit_flag(user, permission, obj: Translation):
+    if not obj.component.is_glossary or obj.is_source:
+        return user.has_perm("source.edit", obj)
+
+    return user.has_perm("glossary.edit", obj)

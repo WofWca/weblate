@@ -25,7 +25,6 @@ from rest_framework import serializers
 from weblate.accounts.models import Subscription
 from weblate.addons.models import ADDONS, Addon
 from weblate.auth.models import Group, Permission, Role, User
-from weblate.glossary.models import Glossary, Term
 from weblate.lang.models import Language, Plural
 from weblate.screenshots.models import Screenshot
 from weblate.trans.defines import LANGUAGE_NAME_LENGTH, REPO_LENGTH
@@ -38,7 +37,11 @@ from weblate.trans.models import (
     Translation,
     Unit,
 )
-from weblate.trans.util import check_upload_method_permissions, cleanup_repo_url
+from weblate.trans.util import (
+    check_upload_method_permissions,
+    cleanup_repo_url,
+    join_plural,
+)
 from weblate.utils.site import get_site_url
 from weblate.utils.validators import validate_bitmap
 from weblate.utils.views import create_component_from_doc, create_component_from_zip
@@ -361,7 +364,6 @@ class ProjectSerializer(serializers.ModelSerializer):
             "source_review",
             "set_language_team",
             "instructions",
-            "mail",
             "enable_hooks",
             "language_aliases",
         )
@@ -414,6 +416,9 @@ class ComponentSerializer(RemovableSerializer):
     lock_url = MultiFieldHyperlinkedIdentityField(
         view_name="api:component-lock", lookup_field=("project__slug", "slug")
     )
+    links_url = MultiFieldHyperlinkedIdentityField(
+        view_name="api:component-links", lookup_field=("project__slug", "slug")
+    )
     changes_list_url = MultiFieldHyperlinkedIdentityField(
         view_name="api:component-changes", lookup_field=("project__slug", "slug")
     )
@@ -428,6 +433,8 @@ class ComponentSerializer(RemovableSerializer):
 
     zipfile = serializers.FileField(required=False)
     docfile = serializers.FileField(required=False)
+
+    enforced_checks = serializers.JSONField(required=False)
 
     task_url = RelatedTaskField(lookup_field="background_task_id")
 
@@ -466,6 +473,7 @@ class ComponentSerializer(RemovableSerializer):
             "translations_url",
             "statistics_url",
             "lock_url",
+            "links_url",
             "changes_list_url",
             "task_url",
             "new_lang",
@@ -484,6 +492,7 @@ class ComponentSerializer(RemovableSerializer):
             "merge_message",
             "addon_message",
             "allow_translation_propagation",
+            "manage_units",
             "enable_suggestions",
             "suggestion_voting",
             "suggestion_autoaccept",
@@ -495,6 +504,8 @@ class ComponentSerializer(RemovableSerializer):
             "zipfile",
             "docfile",
             "addons",
+            "is_glossary",
+            "glossary_color",
         )
         extra_kwargs = {
             "url": {
@@ -523,6 +534,8 @@ class ComponentSerializer(RemovableSerializer):
             )
         if "project" in self._context:
             data["project"] = self._context["project"]
+        if "manage_units" not in data:
+            data["manage_units"] = bool(data.get("template"))
 
     def to_internal_value(self, data):
         # Preprocess to inject params based on content
@@ -576,60 +589,6 @@ class NotificationSerializer(serializers.ModelSerializer):
             "project",
             "component",
         )
-
-
-class TermSerializer(serializers.ModelSerializer):
-    language = LanguageSerializer(required=False)
-
-    class Meta:
-        model = Term
-        fields = (
-            "language",
-            "id",
-            "source",
-            "target",
-        )
-
-    def to_internal_value(self, data):
-        result = super().to_internal_value(data)
-        if "language" in result:
-            result["language"] = Language.objects.get(code=result["language"]["code"])
-        return result
-
-
-class GlossarySerializer(serializers.ModelSerializer):
-    project = ProjectSerializer(read_only=True)
-    source_language = LanguageSerializer(required=False)
-    projects_url = serializers.HyperlinkedIdentityField(
-        view_name="api:glossary-projects", lookup_field="id"
-    )
-    terms_url = serializers.HyperlinkedIdentityField(
-        view_name="api:glossary-terms", lookup_field="id"
-    )
-
-    class Meta:
-        model = Glossary
-        fields = (
-            "name",
-            "id",
-            "color",
-            "source_language",
-            "project",
-            "projects_url",
-            "terms_url",
-            "url",
-        )
-        extra_kwargs = {
-            "url": {"view_name": "api:glossary-detail", "lookup_field": "id"}
-        }
-
-    def to_internal_value(self, data):
-        result = super().to_internal_value(data)
-        if "source_language" in result:
-            result["source_language"] = Language.objects.get(
-                code=result["source_language"]["code"]
-            )
-        return result
 
 
 class TranslationSerializer(RemovableSerializer):
@@ -759,7 +718,15 @@ class UploadRequestSerializer(ReadOnlySerializer):
     author_email = serializers.EmailField(required=False)
     author_name = serializers.CharField(max_length=200, required=False)
     method = serializers.ChoiceField(
-        choices=("translate", "approve", "suggest", "fuzzy", "replace", "source"),
+        choices=(
+            "translate",
+            "approve",
+            "suggest",
+            "fuzzy",
+            "replace",
+            "source",
+            "add",
+        ),
         required=False,
         default="translate",
     )
@@ -924,6 +891,31 @@ class MonolingualUnitSerializer(serializers.Serializer):
     key = serializers.CharField()
     value = PluralField()
 
+    def as_tuple(self):
+        return (self.validated_data["key"], self.validated_data["value"], None)
+
+    def unit_exists(self, obj):
+        return obj.unit_set.filter(context=self.validated_data["key"]).exists()
+
+
+class BilingualUnitSerializer(serializers.Serializer):
+    context = serializers.CharField(required=False)
+    source = PluralField()
+    target = PluralField()
+
+    def as_tuple(self):
+        return (
+            self.validated_data.get("context", ""),
+            self.validated_data["source"],
+            self.validated_data["target"],
+        )
+
+    def unit_exists(self, obj):
+        return obj.unit_set.filter(
+            context=self.validated_data.get("context", ""),
+            source=join_plural(self.validated_data["source"]),
+        ).exists()
+
 
 class ScreenshotSerializer(RemovableSerializer):
     translation = MultiFieldHyperlinkedIdentityField(
@@ -996,7 +988,6 @@ class ChangeSerializer(RemovableSerializer):
             "unit",
             "component",
             "translation",
-            "glossary_term",
             "user",
             "author",
             "timestamp",

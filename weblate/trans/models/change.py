@@ -22,7 +22,7 @@ from django.db import models, transaction
 from django.db.models import Count, Q
 from django.utils import timezone
 from django.utils.translation import gettext as _
-from django.utils.translation import gettext_lazy, ngettext_lazy
+from django.utils.translation import gettext_lazy, ngettext_lazy, pgettext
 from jellyfish import damerau_levenshtein_distance
 
 from weblate.lang.models import Language
@@ -107,7 +107,6 @@ class ChangeQuerySet(models.QuerySet):
             "component",
             "project",
             "unit",
-            "glossary_term",
             "translation__language",
             "translation__component",
             "translation__component__project",
@@ -175,9 +174,6 @@ class Change(models.Model, UserDisplayMixin):
     ACTION_ACCEPT = 7
     ACTION_REVERT = 8
     ACTION_UPLOAD = 9
-    ACTION_DICTIONARY_NEW = 10
-    ACTION_DICTIONARY_EDIT = 11
-    ACTION_DICTIONARY_UPLOAD = 12
     ACTION_NEW_SOURCE = 13
     ACTION_LOCK = 14
     ACTION_UNLOCK = 15
@@ -244,12 +240,6 @@ class Change(models.Model, UserDisplayMixin):
         (ACTION_REVERT, gettext_lazy("Translation reverted")),
         # Translators: Name of event in the history
         (ACTION_UPLOAD, gettext_lazy("Translation uploaded")),
-        # Translators: Name of event in the history
-        (ACTION_DICTIONARY_NEW, gettext_lazy("Added to glossary")),
-        # Translators: Name of event in the history
-        (ACTION_DICTIONARY_EDIT, gettext_lazy("Glossary updated")),
-        # Translators: Name of event in the history
-        (ACTION_DICTIONARY_UPLOAD, gettext_lazy("Glossary uploaded")),
         # Translators: Name of event in the history
         (ACTION_NEW_SOURCE, gettext_lazy("New source string")),
         # Translators: Name of event in the history
@@ -372,18 +362,6 @@ class Change(models.Model, UserDisplayMixin):
         ACTION_MARKED_EDIT,
     }
 
-    # Actions considered as being translated in consistency check
-    ACTIONS_TRANSLATED = {
-        ACTION_CHANGE,
-        ACTION_NEW,
-        ACTION_AUTO,
-        ACTION_ACCEPT,
-        ACTION_REVERT,
-        ACTION_UPLOAD,
-        ACTION_REPLACE,
-        ACTION_APPROVE,
-    }
-
     # Actions shown on the repository management page
     ACTIONS_REPOSITORY = {
         ACTION_COMMIT,
@@ -406,8 +384,6 @@ class Change(models.Model, UserDisplayMixin):
         ACTION_SUGGESTION_CLEANUP,
         ACTION_BULK_EDIT,
         ACTION_NEW_UNIT,
-        ACTION_DICTIONARY_NEW,
-        ACTION_DICTIONARY_EDIT,
     }
 
     # Actions indicating a repository merge failure
@@ -439,9 +415,6 @@ class Change(models.Model, UserDisplayMixin):
     )
     translation = models.ForeignKey(
         "Translation", null=True, on_delete=models.deletion.CASCADE
-    )
-    glossary_term = models.ForeignKey(
-        "glossary.Term", null=True, on_delete=models.deletion.CASCADE
     )
     comment = models.ForeignKey(
         "Comment", null=True, on_delete=models.deletion.SET_NULL
@@ -498,9 +471,6 @@ class Change(models.Model, UserDisplayMixin):
             self.language = self.translation.language
         if self.component:
             self.project = self.component.project
-        if self.glossary_term:
-            self.project = self.glossary_term.glossary.project
-            self.language = self.glossary_term.language
         super().save(*args, **kwargs)
         transaction.on_commit(lambda: notify_change.delay(self.pk))
 
@@ -514,8 +484,6 @@ class Change(models.Model, UserDisplayMixin):
             return self.translation.get_absolute_url()
         if self.component is not None:
             return self.component.get_absolute_url()
-        if self.glossary_term is not None:
-            return self.glossary_term.get_absolute_url()
         if self.project is not None:
             return self.project.get_absolute_url()
         return None
@@ -566,6 +534,17 @@ class Change(models.Model, UserDisplayMixin):
         if self.action in (self.ACTION_ANNOUNCEMENT, self.ACTION_AGREEMENT_CHANGE):
             return render_markdown(self.target)
 
+        if self.action == self.ACTION_LICENSE_CHANGE:
+            not_available = pgettext("License information not available", "N/A")
+            return _(
+                "License for component %(component)s was changed "
+                "from %(old)s to %(target)s."
+            ) % {
+                "component": self.component,
+                "old": self.old or not_available,
+                "target": self.target or not_available,
+            }
+
         # Following rendering relies on details present
         if not self.details:
             return ""
@@ -574,7 +553,6 @@ class Change(models.Model, UserDisplayMixin):
             self.ACTION_INVITE_USER,
             self.ACTION_REMOVE_USER,
         }
-
         if self.action == self.ACTION_ACCESS_EDIT:
             for number, name in Project.ACCESS_CHOICES:
                 if number == self.details["access_control"]:

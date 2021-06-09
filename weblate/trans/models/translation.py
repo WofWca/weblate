@@ -21,7 +21,7 @@ import codecs
 import os
 import tempfile
 from datetime import datetime
-from typing import BinaryIO, Dict, List, Optional, Union
+from typing import BinaryIO, List, Optional, Tuple, Union
 
 from django.core.cache import cache
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
@@ -53,7 +53,11 @@ from weblate.trans.models.unit import (
 from weblate.trans.signals import store_post_load, vcs_pre_commit
 from weblate.trans.util import split_plural
 from weblate.trans.validators import validate_check_flags
-from weblate.utils.db import FastDeleteModelMixin, FastDeleteQuerySetMixin
+from weblate.utils.db import (
+    FastDeleteModelMixin,
+    FastDeleteQuerySetMixin,
+    get_nokey_args,
+)
 from weblate.utils.errors import report_error
 from weblate.utils.render import render_template
 from weblate.utils.site import get_site_url
@@ -281,6 +285,7 @@ class Translation(
             fileobj,
             template,
             language_code=self.language_code,
+            source_language=self.component.source_language.code,
             is_template=self.is_template,
         )
         store_post_load.send(sender=self.__class__, translation=self, store=store)
@@ -303,6 +308,8 @@ class Translation(
             is_new = False
         except KeyError:
             newunit = Unit(translation=self, id_hash=id_hash, state=-1)
+            # Avoid fetching empty list of checks from the database
+            newunit.all_checks = []
             is_new = True
 
         newunit.update_from_unit(unit, pos, is_new)
@@ -361,7 +368,10 @@ class Translation(
             self.was_new = 0
 
             # Select all current units for update
-            dbunits = {unit.id_hash: unit for unit in self.unit_set.select_for_update()}
+            dbunits = {
+                unit.id_hash: unit
+                for unit in self.unit_set.select_for_update(**get_nokey_args())
+            }
 
             # Process based on intermediate store if available
             if self.component.intermediate:
@@ -565,6 +575,7 @@ class Translation(
         skip_push=False,
         signals=True,
         template: Optional[str] = None,
+        store_hash: bool = True,
     ):
         """Wrapper for committing translation to git."""
         repository = self.component.repository
@@ -590,7 +601,8 @@ class Translation(
                 )
 
             # Store updated hash
-            self.store_hash()
+            if store_hash:
+                self.store_hash()
             self.addon_commit_files = []
 
         return True
@@ -740,6 +752,9 @@ class Translation(
         if not self.is_source:
             result.add_if(self.stats, "translated_checks", "warning")
 
+        # Dismissed checks
+        result.add_if(self.stats, "dismissed_checks", "warning")
+
         # Process specific checks
         for check in CHECKS:
             check_obj = CHECKS[check]
@@ -855,6 +870,8 @@ class Translation(
     def drop_store_cache(self):
         if "store" in self.__dict__:
             del self.__dict__["store"]
+        if self.is_source:
+            self.component.drop_template_store_cache()
 
     def handle_source(self, request, fileobj):
         """Replace source translations with uploaded one."""
@@ -864,7 +881,7 @@ class Translation(
             # Commit pending changes
             component.commit_pending("source update", request.user)
 
-            # Create acutal file with the file
+            # Create actual file with the uploaded content
             temp = tempfile.NamedTemporaryFile(
                 prefix="weblate-upload", dir=self.component.full_path, delete=False
             )
@@ -914,13 +931,20 @@ class Translation(
                         os.unlink(temp.name)
 
             # Commit changes
+            previous_revision = (self.component.repository.last_revision,)
             if component.commit_files(
                 template=component.addon_message,
                 files=filenames,
                 author=request.user.get_author_name(),
                 extra_context={"addon_name": "Source update"},
             ):
-                component.create_translations(request=request, force=True)
+                self.drop_store_cache()
+                self.handle_store_change(
+                    request,
+                    request.user,
+                    previous_revision,
+                    change=Change.ACTION_REPLACE_UPLOAD,
+                )
         return (0, 0, self.unit_set.count(), self.unit_set.count())
 
     def handle_replace(self, request, fileobj):
@@ -943,23 +967,41 @@ class Translation(
             )
 
             # Commit to VCS
-            if self.git_commit(request.user, request.user.get_author_name()):
+            previous_revision = (self.component.repository.last_revision,)
+            if self.git_commit(
+                request.user, request.user.get_author_name(), store_hash=False
+            ):
 
                 # Drop store cache
                 self.drop_store_cache()
-
-                # Parse the file again
-                if self.is_template:
-                    self.component.create_translations(request=request, force=True)
-                else:
-                    self.check_sync(
-                        force=True,
-                        request=request,
-                        change=Change.ACTION_REPLACE_UPLOAD,
-                    )
-                    self.invalidate_cache()
+                self.handle_store_change(
+                    request,
+                    request.user,
+                    previous_revision,
+                    change=Change.ACTION_REPLACE_UPLOAD,
+                )
 
         return (0, 0, self.unit_set.count(), len(list(store2.content_units)))
+
+    def handle_add_upload(self, request, store, fuzzy: str = ""):
+        skipped = 0
+        accepted = 0
+        existing = set(self.unit_set.values_list("context", "source"))
+        units = []
+        for _set_fuzzy, unit in store.iterate_merge(fuzzy):
+            if (unit.context, unit.source) in existing:
+                skipped += 1
+                continue
+            units.append(
+                (
+                    unit.context,
+                    split_plural(unit.source),
+                    split_plural(unit.target),
+                )
+            )
+            accepted += 1
+        self.add_units(request, units)
+        return (0, skipped, accepted, len(list(store.content_units)))
 
     @transaction.atomic
     def merge_upload(
@@ -973,20 +1015,27 @@ class Translation(
         fuzzy: str = "",
     ):
         """Top level handler for file uploads."""
+        from weblate.accounts.models import AuditLog
+
         # Optionally set authorship
         orig_user = None
         if author_email:
             from weblate.auth.models import User
 
             orig_user = request.user
-            request.user = User.objects.get_or_create(
+            request.user, created = User.objects.get_or_create(
                 email=author_email,
                 defaults={
                     "username": author_email,
-                    "is_active": False,
                     "full_name": author_name or author_email,
                 },
-            )[0]
+            )
+            if created:
+                AuditLog.objects.create(
+                    request.user,
+                    request,
+                    "autocreated",
+                )
 
         try:
             if method == "replace":
@@ -1027,6 +1076,9 @@ class Translation(
                     return self.merge_translations(
                         request, store, conflicts, method, fuzzy
                     )
+            elif method == "add":
+                with self.component.repository.lock:
+                    return self.handle_add_upload(request, store, fuzzy=fuzzy)
 
             # Add as sugestions
             return self.merge_suggestions(request, store, fuzzy)
@@ -1038,6 +1090,7 @@ class Translation(
         """Invalidate any cached stats."""
         # Invalidate summary stats
         transaction.on_commit(self.stats.invalidate)
+        transaction.on_commit(self.component.invalidate_glossary_cache)
 
     @property
     def keys_cache_key(self):
@@ -1081,25 +1134,51 @@ class Translation(
             author=user,
         )
 
-    def add_units(self, request, batch: Dict[str, Union[str, List[str]]]):
+    def handle_store_change(self, request, user, previous_revision: str, change=None):
+        if self.is_source:
+            self.component.create_translations(request=request)
+        else:
+            self.check_sync(request=request, change=change)
+            self.invalidate_cache()
+        # Trigger post-update signal
+        self.component.trigger_post_update(previous_revision, False)
+
+    def get_store_change_translations(self):
+        component = self.component
+        if not self.is_source or component.has_template():
+            return [self]
+        return component.translation_set.exclude(id=self.id)
+
+    @transaction.atomic
+    def add_units(
+        self,
+        request,
+        batch: List[Tuple[str, Union[str, List[str]], Optional[Union[str, List[str]]]]],
+    ):
         from weblate.auth.models import get_anonymous
 
         user = request.user if request else get_anonymous()
         with self.component.repository.lock:
             self.component.commit_pending("new unit", user)
-            for key, value in batch.items():
-                self.store.new_unit(key, value)
-                Change.objects.create(
-                    translation=self,
-                    action=Change.ACTION_NEW_UNIT,
-                    target=value,
-                    user=user,
-                    author=user,
-                )
-            self.component.drop_template_store_cache()
-            self.git_commit(user, user.get_author_name())
-        self.component.create_translations(request=request)
+            previous_revision = (self.component.repository.last_revision,)
+            for translation in self.get_store_change_translations():
+                for context, source, target in batch:
+                    translation.store.new_unit(context, source, target)
+                    Change.objects.create(
+                        translation=translation,
+                        action=Change.ACTION_NEW_UNIT,
+                        target=source,
+                        user=user,
+                        author=user,
+                    )
+                translation.drop_store_cache()
+                translation.git_commit(user, user.get_author_name(), store_hash=False)
+            self.handle_store_change(request, user, previous_revision)
 
+        if self.is_source:
+            self.component.sync_terminology()
+
+    @transaction.atomic
     def delete_unit(self, request, unit):
         from weblate.auth.models import get_anonymous
 
@@ -1107,16 +1186,39 @@ class Translation(
         user = request.user if request else get_anonymous()
         with component.repository.lock:
             component.commit_pending("delete unit", user)
+            previous_revision = (self.component.repository.last_revision,)
+            for translation in self.get_store_change_translations():
+                try:
+                    pounit, add = translation.store.find_unit(unit.context, unit.source)
+                except UnitNotFound:
+                    return
+                if add:
+                    return
+                extra_files = translation.store.remove_unit(pounit.unit)
+                translation.addon_commit_files.extend(extra_files)
+                translation.drop_store_cache()
+                translation.git_commit(user, user.get_author_name(), store_hash=False)
+            self.handle_store_change(request, user, previous_revision)
+
+    def sync_terminology(self):
+        if self.is_source:
+            return
+        store = self.store
+        missing = []
+        for source in self.component.get_all_sources():
+            if "terminology" not in source.all_flags:
+                continue
             try:
-                pounit, add = self.store.find_unit(unit.context, unit.source)
+                _unit, add = store.find_unit(source.context, source.source)
             except UnitNotFound:
-                return
-            if add:
-                return
-            extra_files = self.store.remove_unit(pounit.unit)
-            self.addon_commit_files.extend(extra_files)
-            self.git_commit(user, user.get_author_name())
-        component.create_translations(request=request, force=True)
+                add = True
+            # Unit is already present
+            if not add:
+                continue
+            missing.append((source.context, source.source, ""))
+
+        if missing:
+            self.add_units(None, missing)
 
 
 class GhostTranslation:

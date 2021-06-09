@@ -52,6 +52,63 @@ from weblate.utils.render import validate_editor
 from weblate.utils.request import get_ip_address, get_user_agent
 
 
+class WeblateAccountsConf(AppConf):
+    """Accounts settings."""
+
+    # Disable avatars
+    ENABLE_AVATARS = True
+
+    # Avatar URL prefix
+    AVATAR_URL_PREFIX = "https://www.gravatar.com/"
+
+    # Avatar fallback image
+    # See http://en.gravatar.com/site/implement/images/ for available choices
+    AVATAR_DEFAULT_IMAGE = "identicon"
+
+    # Enable registrations
+    REGISTRATION_OPEN = True
+
+    # Allow registration from certain backends
+    REGISTRATION_ALLOW_BACKENDS = []
+
+    # Registration email filter
+    REGISTRATION_EMAIL_MATCH = ".*"
+
+    # Captcha for registrations
+    REGISTRATION_CAPTCHA = True
+
+    # How long to keep auditlog entries
+    AUDITLOG_EXPIRY = 180
+
+    # Auto-watch setting for new users
+    DEFAULT_AUTO_WATCH = True
+
+    # Auth0 provider default image & title on login page
+    SOCIAL_AUTH_AUTH0_IMAGE = "auth0.svg"
+    SOCIAL_AUTH_AUTH0_TITLE = "Auth0"
+    SOCIAL_AUTH_SAML_IMAGE = "saml.svg"
+    SOCIAL_AUTH_SAML_TITLE = "SAML"
+
+    # Login required URLs
+    LOGIN_REQUIRED_URLS = []
+    LOGIN_REQUIRED_URLS_EXCEPTIONS = (
+        r"{URL_PREFIX}/accounts/(.*)$",  # Required for login
+        r"{URL_PREFIX}/admin/login/(.*)$",  # Required for admin login
+        r"{URL_PREFIX}/static/(.*)$",  # Required for development mode
+        r"{URL_PREFIX}/widgets/(.*)$",  # Allowing public access to widgets
+        r"{URL_PREFIX}/data/(.*)$",  # Allowing public access to data exports
+        r"{URL_PREFIX}/hooks/(.*)$",  # Allowing public access to notification hooks
+        r"{URL_PREFIX}/healthz/$",  # Allowing public access to health check
+        r"{URL_PREFIX}/api/(.*)$",  # Allowing access to API
+        r"{URL_PREFIX}/js/i18n/$",  # JavaScript localization
+        r"{URL_PREFIX}/contact/$",  # Optional for contact form
+        r"{URL_PREFIX}/legal/(.*)$",  # Optional for legal app
+    )
+
+    class Meta:
+        prefix = ""
+
+
 class Subscription(models.Model):
     user = models.ForeignKey(User, on_delete=models.deletion.CASCADE)
     notification = models.CharField(
@@ -100,6 +157,10 @@ ACCOUNT_ACTIVITY = {
     "invited": _("Invited to Weblate by {username}."),
     "trial": _("Started trial period."),
     "sent-email": _("Sent confirmation mail to {email}."),
+    "autocreated": _(
+        "System created user to track authorship of "
+        "translations uploaded by other user."
+    ),
 }
 # Override activty messages based on method
 ACCOUNT_ACTIVITY_METHOD = {
@@ -366,6 +427,13 @@ class Profile(models.Model):
         validators=[MinValueValidator(1), MaxValueValidator(50)],
         help_text=_(
             "Number of nearby strings to show in each direction in the full editor."
+        ),
+    )
+    auto_watch = models.BooleanField(
+        verbose_name=_("Automatically watch projects on contribution"),
+        default=settings.DEFAULT_AUTO_WATCH,
+        help_text=_(
+            "Whenever you translate a string in a project, you will start watching it."
         ),
     )
 
@@ -656,57 +724,3 @@ def create_profile_callback(sender, instance, created=False, **kwargs):
         # Create subscriptions
         if not instance.is_anonymous:
             create_default_notifications(instance)
-
-
-class WeblateAccountsConf(AppConf):
-    """Accounts settings."""
-
-    # Disable avatars
-    ENABLE_AVATARS = True
-
-    # Avatar URL prefix
-    AVATAR_URL_PREFIX = "https://www.gravatar.com/"
-
-    # Avatar fallback image
-    # See http://en.gravatar.com/site/implement/images/ for available choices
-    AVATAR_DEFAULT_IMAGE = "identicon"
-
-    # Enable registrations
-    REGISTRATION_OPEN = True
-
-    # Allow registration from certain backends
-    REGISTRATION_ALLOW_BACKENDS = []
-
-    # Registration email filter
-    REGISTRATION_EMAIL_MATCH = ".*"
-
-    # Captcha for registrations
-    REGISTRATION_CAPTCHA = True
-
-    # How long to keep auditlog entries
-    AUDITLOG_EXPIRY = 180
-
-    # Auth0 provider default image & title on login page
-    SOCIAL_AUTH_AUTH0_IMAGE = "auth0.svg"
-    SOCIAL_AUTH_AUTH0_TITLE = "Auth0"
-    SOCIAL_AUTH_SAML_IMAGE = "saml.svg"
-    SOCIAL_AUTH_SAML_TITLE = "SAML"
-
-    # Login required URLs
-    LOGIN_REQUIRED_URLS = []
-    LOGIN_REQUIRED_URLS_EXCEPTIONS = (
-        r"{URL_PREFIX}/accounts/(.*)$",  # Required for login
-        r"{URL_PREFIX}/admin/login/(.*)$",  # Required for admin login
-        r"{URL_PREFIX}/static/(.*)$",  # Required for development mode
-        r"{URL_PREFIX}/widgets/(.*)$",  # Allowing public access to widgets
-        r"{URL_PREFIX}/data/(.*)$",  # Allowing public access to data exports
-        r"{URL_PREFIX}/hooks/(.*)$",  # Allowing public access to notification hooks
-        r"{URL_PREFIX}/healthz/$",  # Allowing public access to health check
-        r"{URL_PREFIX}/api/(.*)$",  # Allowing access to API
-        r"{URL_PREFIX}/js/i18n/$",  # JavaScript localization
-        r"{URL_PREFIX}/contact/$",  # Optional for contact form
-        r"{URL_PREFIX}/legal/(.*)$",  # Optional for legal app
-    )
-
-    class Meta:
-        prefix = ""

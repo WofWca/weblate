@@ -70,6 +70,7 @@ class WeblateChecksConf(AppConf):
         "weblate.checks.format.CFormatCheck",
         "weblate.checks.format.PerlFormatCheck",
         "weblate.checks.format.JavaScriptFormatCheck",
+        "weblate.checks.format.LuaFormatCheck",
         "weblate.checks.format.CSharpFormatCheck",
         "weblate.checks.format.JavaFormatCheck",
         "weblate.checks.format.JavaMessageFormatCheck",
@@ -105,6 +106,7 @@ class WeblateChecksConf(AppConf):
         "weblate.checks.source.MultipleFailingCheck",
         "weblate.checks.source.LongUntranslatedCheck",
         "weblate.checks.format.MultipleUnnamedFormatsCheck",
+        "weblate.checks.glossary.GlossaryCheck",
     )
 
     class Meta:
@@ -206,6 +208,7 @@ def remove_complimentary_checks(sender, instance, **kwargs):
         ).delete()
         for other in unit.same_source_units:
             other.translation.invalidate_cache()
+            other.clear_checks_cache()
 
     # Update source checks if needed
     if check_obj.target:

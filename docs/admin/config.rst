@@ -10,7 +10,7 @@ All settings are stored in :file:`settings.py` (as is usual for Django).
     After changing any of these settings, you need to restart Weblate - both
     WSGI and Celery processes.
 
-    In case it is run as mod_wsgi, you need to restart Apache to reload the
+    In case it is run as ``mod_wsgi``, you need to restart Apache to reload the
     configuration.
 
 .. seealso::
@@ -412,6 +412,20 @@ on the internal Weblate management.
    :ref:`project-access_control`,
    :ref:`privileges`
 
+.. setting:: DEFAULT_AUTO_WATCH
+
+DEFAULT_AUTO_WATCH
+------------------
+
+.. versionadded:: 4.5
+
+Configures whether :guilabel:`Automatically watch projects on contribution`
+should be turned on for new users. Defaults to ``True``.
+
+.. seealso::
+
+   :ref:`subscriptions`
+
 .. setting:: DEFAULT_RESTRICTED_COMPONENT
 
 DEFAULT_RESTRICTED_COMPONENT
@@ -734,7 +748,7 @@ translation updates.
 
    :setting:`GITHUB_CREDENTIALS`,
    :ref:`vcs-github`,
-   `Creating a personal access token <https://docs.github.com/en/free-pro-team@latest/github/authenticating-to-github/creating-a-personal-access-token>`_
+   `Creating a personal access token <https://docs.github.com/en/github/authenticating-to-github/creating-a-personal-access-token>`_
 
 .. setting:: GOOGLE_ANALYTICS_ID
 

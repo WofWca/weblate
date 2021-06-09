@@ -18,7 +18,6 @@
 #
 """Git based version control system abstraction for Weblate needs."""
 
-import json
 import logging
 import os
 import os.path
@@ -26,6 +25,7 @@ import random
 import urllib.parse
 from configparser import NoOptionError, NoSectionError
 from datetime import datetime
+from json import JSONDecodeError, dumps
 from typing import Dict, List, Optional, Tuple
 from zipfile import ZipFile
 
@@ -307,7 +307,7 @@ class GitRepository(Repository):
         self, pull_url: str, push_url: str, branch: str, fast: bool = True
     ):
         """Configure remote repository."""
-        escaped_branch = json.dumps(branch)
+        escaped_branch = dumps(branch)
         self.config_update(
             # Pull url
             ('remote "origin"', "url", pull_url),
@@ -317,7 +317,7 @@ class GitRepository(Repository):
             (
                 'remote "origin"',
                 "fetch",
-                json.dumps(f"+refs/heads/{branch}:refs/remotes/origin/{branch}")
+                dumps(f"+refs/heads/{branch}:refs/remotes/origin/{branch}")
                 if fast
                 else "+refs/heads/*:refs/remotes/origin/*",
             ),
@@ -325,7 +325,7 @@ class GitRepository(Repository):
             ('remote "origin"', "tagOpt", "--no-tags"),
             # Set branch to track
             (f"branch {escaped_branch}", "remote", "origin"),
-            (f"branch {escaped_branch}", "merge", json.dumps(f"refs/heads/{branch}")),
+            (f"branch {escaped_branch}", "merge", dumps(f"refs/heads/{branch}")),
         )
         self.branch = branch
 
@@ -604,6 +604,18 @@ class GitMergeRequestBase(GitForcePushRepository):
     identifier = None
     API_TEMPLATE = ""
 
+    def merge(self, abort=False, message=None):
+        """Merge remote branch or reverts the merge."""
+        # This reverts merge behavior of pure git backend
+        # as we're expecting there will be an additional merge
+        # commmit created from the merge request.
+        if abort:
+            self.execute(["merge", "--abort"])
+            # Needed for compatibility with original merge code
+            self.execute(["checkout", self.branch])
+        else:
+            self.execute(["merge", f"origin/{self.branch}"])
+
     def get_api_url(self) -> Tuple[str, str, str]:
         repo = self.component.repo
         parsed = urllib.parse.urlparse(repo)
@@ -685,7 +697,7 @@ class GitMergeRequestBase(GitForcePushRepository):
             self.create_fork(credentials)
 
     def push(self, branch: str):
-        """Fork repository on Github and push changes.
+        """Fork repository on GitHub and push changes.
 
         Pushes changes to *-weblate branch on fork and creates pull request against
         original repository.
@@ -745,7 +757,11 @@ class GithubRepository(GitMergeRequestBase):
             },
             json=json,
         )
-        data = response.json()
+        try:
+            data = response.json()
+        except JSONDecodeError as error:
+            response.raise_for_status()
+            raise RepositoryException(0, str(error))
 
         # Log and parase all errors. Sometimes GitHub returns the error
         # messages in an errors list instead of the message. Sometimes, there
@@ -886,6 +902,7 @@ class LocalRepository(GitRepository):
             repo.execute(["add", target])
             if repo.needs_commit():
                 repo.commit("ZIP file upladed into Weblate")
+        return repo
 
     @classmethod
     def from_files(cls, target, files):
@@ -906,7 +923,8 @@ class LocalRepository(GitRepository):
         with repo.lock:
             repo.execute(["add", target])
             if repo.needs_commit():
-                repo.commit("Started tranlation using Weblate")
+                repo.commit("Started translation using Weblate")
+        return repo
 
 
 class GitLabRepository(GitMergeRequestBase):
@@ -916,11 +934,12 @@ class GitLabRepository(GitMergeRequestBase):
     API_TEMPLATE = "https://{host}/api/v4/projects/{owner_url}%2F{slug_url}"
 
     def get_forked_url(self, credentials: Dict) -> str:
-        """Gitlab MR needs the API URL for the forked repository.
+        """
+        Returns GitLab API URL for the forked repository.
 
-        To send a MR to Gitlab via API, one needs to send request to
+        To send a MR to GitLab via API, one needs to send request to
         API URL of the forked repository along with the target project ID
-        unlike Github where the PR is sent to the target project's API URL.
+        unlike GitHub where the PR is sent to the target project's API URL.
         """
         target_path = credentials["url"].split("/")[-1]
         cmd = ["remote", "get-url", "--push", credentials["username"]]
@@ -962,7 +981,7 @@ class GitLabRepository(GitMergeRequestBase):
     def disable_fork_features(self, credentials: Dict, forked_url: str):
         """Disable features in fork.
 
-        Gitlab initializes a lot of the features in the fork
+        GitLab initializes a lot of the features in the fork
         that are not desirable, such as merge requests, issues, etc.
         This function is intended to disable all such features by
         editing the forked repo.
@@ -1030,7 +1049,7 @@ class GitLabRepository(GitMergeRequestBase):
         target_project_id = None
         pr_url = "{}/merge_requests".format(credentials["url"])
         if fork_remote != "origin":
-            # Gitlab MR works a little different from Github. The MR needs
+            # GitLab MR works a little different from GitHub. The MR needs
             # to be sent with the fork's API URL along with a parameter mentioning
             # the target project id
             target_project_id = self.get_target_project_id(credentials)

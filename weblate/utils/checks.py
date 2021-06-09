@@ -17,15 +17,17 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
-
 import errno
 import os
 import sys
 import time
 from collections import defaultdict
+from datetime import datetime, timedelta
+from distutils.version import LooseVersion
 from itertools import chain
 
 from celery.exceptions import TimeoutError
+from dateutil.parser import parse
 from django.conf import settings
 from django.core.cache import cache
 from django.core.checks import Critical, Error, Info
@@ -33,8 +35,10 @@ from django.core.mail import get_connection
 
 from weblate.utils.celery import get_queue_stats
 from weblate.utils.data import data_dir
+from weblate.utils.db import using_postgresql
 from weblate.utils.docs import get_doc_url
 from weblate.utils.site import check_domain, get_site_domain
+from weblate.utils.version import VERSION_BASE, Release
 
 GOOD_CACHE = {"MemcachedCache", "PyLibMCCache", "DatabaseCache", "RedisCache"}
 DEFAULT_MAILS = {
@@ -138,6 +142,8 @@ def is_celery_queue_long():
     filtered out, and no warning need be issued for big operations (for example
     site-wide autotranslation).
     """
+    from weblate.trans.models import Translation
+
     cache_key = "celery_queue_stats"
     queues_data = cache.get(cache_key, {})
 
@@ -167,7 +173,9 @@ def is_celery_queue_long():
     # Check if any queue got bigger
     base = queues_data[test_hour]
     thresholds = defaultdict(lambda: 50)
-    thresholds["translate"] = 1000
+    # Set the limit to avoid trigger on auto-translating all components
+    # nightly.
+    thresholds["translate"] = max(1000, Translation.objects.count() / 30)
     return any(
         stat > thresholds[key] and base.get(key, 0) > thresholds[key]
         for key, stat in stats.items()
@@ -256,7 +264,7 @@ def check_celery(app_configs, **kwargs):
 
 
 def check_database(app_configs, **kwargs):
-    if settings.DATABASES["default"]["ENGINE"] == "django.db.backends.postgresql":
+    if using_postgresql():
         return []
     return [
         weblate_check(
@@ -400,7 +408,7 @@ def check_perms(app_configs=None, **kwargs):
     """Check that the data dir can be written to."""
     errors = []
     uid = os.getuid()
-    message = "The path {} is owned by different user, check your DATA_DIR settings."
+    message = "The path {} is owned by a different user, check your DATA_DIR settings."
     for dirpath, dirnames, filenames in os.walk(settings.DATA_DIR):
         for name in chain(dirnames, filenames):
             # Skip toplevel lost+found dir, that one is typically owned by root
@@ -456,4 +464,67 @@ def check_diskspace(app_configs=None, **kwargs):
     stat = os.statvfs(settings.DATA_DIR)
     if stat.f_bavail * stat.f_bsize < 10000000:
         return [weblate_check("weblate.C032", "The disk is nearly full")]
+    return []
+
+
+# Python Package Index URL
+PYPI = "https://pypi.org/pypi/Weblate/json"
+
+# Cache to store fetched PyPI version
+CACHE_KEY = "version-check"
+
+
+def download_version_info():
+    from weblate.utils.requests import request
+
+    response = request("get", PYPI)
+    result = []
+    for version, info in response.json()["releases"].items():
+        if not info:
+            continue
+        result.append(Release(version, parse(info[0]["upload_time"])))
+    return sorted(result, key=lambda x: x[1], reverse=True)
+
+
+def flush_version_cache():
+    cache.delete(CACHE_KEY)
+
+
+def get_version_info():
+    result = cache.get(CACHE_KEY)
+    if not result:
+        result = download_version_info()
+        cache.set(CACHE_KEY, result, 86400)
+    return result
+
+
+def get_latest_version():
+    return get_version_info()[0]
+
+
+def check_version(app_configs=None, **kwargs):
+    try:
+        latest = get_latest_version()
+    except (ValueError, OSError):
+        return []
+    if LooseVersion(latest.version) > LooseVersion(VERSION_BASE):
+        # With release every two months, this get's triggered after three releases
+        if latest.timestamp + timedelta(days=180) < datetime.now():
+            return [
+                weblate_check(
+                    "weblate.C031",
+                    "You Weblate version is outdated, please upgrade to {}.".format(
+                        latest.version
+                    ),
+                )
+            ]
+        return [
+            weblate_check(
+                "weblate.I031",
+                "New Weblate version is available, please upgrade to {}.".format(
+                    latest.version
+                ),
+                Info,
+            )
+        ]
     return []

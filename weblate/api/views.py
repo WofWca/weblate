@@ -50,11 +50,11 @@ from weblate.addons.models import Addon
 from weblate.api.serializers import (
     AddonSerializer,
     BasicUserSerializer,
+    BilingualUnitSerializer,
     ChangeSerializer,
     ComponentListSerializer,
     ComponentSerializer,
     FullUserSerializer,
-    GlossarySerializer,
     GroupSerializer,
     LanguageSerializer,
     LockRequestSerializer,
@@ -68,7 +68,6 @@ from weblate.api.serializers import (
     ScreenshotFileSerializer,
     ScreenshotSerializer,
     StatisticsSerializer,
-    TermSerializer,
     TranslationSerializer,
     UnitSerializer,
     UnitWriteSerializer,
@@ -78,7 +77,6 @@ from weblate.api.serializers import (
 from weblate.auth.models import Group, Role, User
 from weblate.checks.models import Check
 from weblate.formats.models import EXPORTERS
-from weblate.glossary.models import Glossary, Term
 from weblate.lang.models import Language
 from weblate.screenshots.models import Screenshot
 from weblate.trans.forms import AutoForm
@@ -770,141 +768,6 @@ class ProjectViewSet(
         return Response(status=HTTP_204_NO_CONTENT)
 
 
-class GlossaryViewSet(WeblateViewSet, UpdateModelMixin, DestroyModelMixin):
-    """Translation projects API."""
-
-    queryset = Glossary.objects.none()
-    serializer_class = GlossarySerializer
-    lookup_field = "id"
-
-    def get_queryset(self):
-        return (
-            Glossary.objects.filter_access(self.request.user)
-            .prefetch_related("source_language", "project")
-            .order_by("id")
-        )
-
-    def perm_check(self, request):
-        obj = self.get_object()
-        project = obj.project
-        additional_projects = obj.links.all()
-        if not request.user.has_perm("project.edit", project) and not any(
-            request.user.has_perm("project.edit", proj) for proj in additional_projects
-        ):
-            self.permission_denied(request, message="Can not manage glossary")
-
-    def term_perm_check(self, request, permission, obj):
-        project = obj.project
-        additional_projects = obj.links.all()
-        if not request.user.has_perm(permission, project) and not any(
-            request.user.has_perm(permission, proj) for proj in additional_projects
-        ):
-            self.permission_denied(request, message="Can not manage glossary terms")
-
-    def update(self, request, *args, **kwargs):
-        self.perm_check(request)
-        return super().update(request, *args, **kwargs)
-
-    def destroy(self, request, *args, **kwargs):
-        self.perm_check(request)
-        return super().destroy(request, *args, **kwargs)
-
-    @action(detail=True, methods=["get", "post"])
-    def projects(self, request, **kwargs):
-        obj = self.get_object()
-        if request.method == "POST":
-            self.perm_check(request)
-            if "project_slug" not in request.data:
-                raise ParseError("Missing 'project_slug' parameter")
-
-            project_slug = request.data["project_slug"]
-
-            try:
-                project = Project.objects.get(slug=project_slug)
-            except Project.DoesNotExist:
-                raise Http404("No project slug '%s' found!" % project_slug)
-
-            obj.links.add(project)
-            serializer = self.serializer_class(obj, context={"request": request})
-
-            return Response(data={"data": serializer.data}, status=HTTP_201_CREATED)
-
-        queryset = obj.links.order_by("id")
-        page = self.paginate_queryset(queryset)
-
-        serializer = ProjectSerializer(page, many=True, context={"request": request})
-
-        return self.get_paginated_response(serializer.data)
-
-    @action(
-        detail=True, methods=["delete"], url_path="projects/(?P<project_slug>[^/.]+)"
-    )
-    def delete_projects(self, request, id, project_slug):
-        obj = self.get_object()
-        self.perm_check(request)
-
-        try:
-            project = obj.links.get(slug=project_slug)
-        except Project.DoesNotExist:
-            raise Http404("Project not found")
-        obj.links.remove(project)
-        return Response(status=HTTP_204_NO_CONTENT)
-
-    @action(detail=True, methods=["get", "post"], serializer_class=TermSerializer)
-    def terms(self, request, **kwargs):
-        obj = self.get_object()
-        if request.method == "POST":
-            self.term_perm_check(request, "glossary.add", obj)
-            with transaction.atomic():
-                serializer = TermSerializer(
-                    data=request.data, context={"request": request}
-                )
-                serializer.is_valid(raise_exception=True)
-                serializer.save(glossary=obj, user=request.user)
-                return Response(serializer.data, status=HTTP_201_CREATED)
-
-        queryset = obj.term_set.order_by("id")
-        page = self.paginate_queryset(queryset)
-
-        serializer = TermSerializer(page, many=True, context={"request": request})
-
-        return self.get_paginated_response(serializer.data)
-
-    @action(
-        detail=True,
-        methods=["get", "put", "patch", "delete"],
-        url_path="terms/(?P<term_id>[0-9]+)",
-        serializer_class=TermSerializer,
-    )
-    def terms_details(self, request, id, term_id):
-        obj = self.get_object()
-
-        try:
-            term = obj.term_set.get(id=term_id)
-        except Term.DoesNotExist:
-            raise Http404("Term not found")
-
-        if request.method == "DELETE":
-            self.term_perm_check(request, "glossary.delete", obj)
-            term.delete()
-            return Response(status=HTTP_204_NO_CONTENT)
-
-        if request.method == "GET":
-            serializer = TermSerializer(term, context={"request": request})
-        else:
-            self.term_perm_check(request, "glossary.edit", obj)
-            serializer = TermSerializer(
-                term,
-                data=request.data,
-                context={"request": request},
-                partial=request.method == "PATCH",
-            )
-            serializer.is_valid(raise_exception=True)
-            serializer.save()
-
-        return Response(serializer.data, status=HTTP_200_OK)
-
-
 class ComponentViewSet(
     MultipleFieldMixin, WeblateViewSet, UpdateModelMixin, DestroyModelMixin
 ):
@@ -1063,6 +926,49 @@ class ComponentViewSet(
         component_removal.delay(instance.pk, request.user.pk)
         return Response(status=HTTP_204_NO_CONTENT)
 
+    @action(detail=True, methods=["get", "post"])
+    def links(self, request, **kwargs):
+        instance = self.get_object()
+        if request.method == "POST":
+            if not request.user.has_perm("component.edit", instance):
+                self.permission_denied(request, "Can not edit component")
+            if "project_slug" not in request.data:
+                raise ParseError("Missing 'project_slug' parameter")
+
+            project_slug = request.data["project_slug"]
+
+            try:
+                project = request.user.allowed_projects.exclude(
+                    pk=instance.project_id
+                ).get(slug=project_slug)
+            except Project.DoesNotExist:
+                raise ParseError(f"No project slug '{project_slug}' found!")
+
+            instance.links.add(project)
+            serializer = self.serializer_class(instance, context={"request": request})
+
+            return Response(data={"data": serializer.data}, status=HTTP_201_CREATED)
+
+        queryset = instance.links.order_by("id")
+        page = self.paginate_queryset(queryset)
+
+        serializer = ProjectSerializer(page, many=True, context={"request": request})
+
+        return self.get_paginated_response(serializer.data)
+
+    @action(detail=True, methods=["delete"], url_path="links/(?P<project_slug>[^/.]+)")
+    def delete_links(self, request, project__slug, slug, project_slug):
+        instance = self.get_object()
+        if not request.user.has_perm("component.edit", instance):
+            self.permission_denied(request, "Can not edit component")
+
+        try:
+            project = instance.links.get(slug=project_slug)
+        except Project.DoesNotExist:
+            raise Http404("Project not found")
+        instance.links.remove(project)
+        return Response(status=HTTP_204_NO_CONTENT)
+
 
 class TranslationViewSet(MultipleFieldMixin, WeblateViewSet, DestroyModelMixin):
     """Translation components API."""
@@ -1165,21 +1071,21 @@ class TranslationViewSet(MultipleFieldMixin, WeblateViewSet, DestroyModelMixin):
     def units(self, request, **kwargs):
         obj = self.get_object()
 
+        if obj.component.template:
+            serializer_class = MonolingualUnitSerializer
+        else:
+            serializer_class = BilingualUnitSerializer
+
         if request.method == "POST":
             if not request.user.has_perm("unit.add", obj):
                 self.permission_denied(request, "Can not add unit")
-            serializer = MonolingualUnitSerializer(data=request.data)
+            serializer = serializer_class(data=request.data)
             serializer.is_valid(raise_exception=True)
 
-            key = serializer.validated_data["key"]
-            value = serializer.validated_data["value"]
+            if serializer.unit_exists(obj):
+                raise ValidationError("This this string already exists!")
 
-            if obj.unit_set.filter(context=key).exists():
-                raise ValidationError(
-                    "Translation with this key seem to already exist!"
-                )
-
-            obj.add_units(request, {key: value})
+            obj.add_units(request, [serializer.as_tuple()])
             serializer = self.serializer_class(obj, context={"request": request})
             return Response(serializer.data, status=HTTP_200_OK)
 

@@ -7,9 +7,9 @@
 # Zmicer Turok <nashtlumach@gmail.com>, 2020.
 msgid ""
 msgstr ""
-"Project-Id-Version: Weblate 4.4.1\n"
+"Project-Id-Version: Weblate 4.5\n"
 "Report-Msgid-Bugs-To: https://github.com/WeblateOrg/weblate/issues\n"
-"POT-Creation-Date: 2021-01-12 19:14+0000\n"
+"POT-Creation-Date: 2021-02-17 14:01+0000\n"
 "PO-Revision-Date: 2020-11-07 22:26+0000\n"
 "Last-Translator: Zmicer Turok <nashtlumach@gmail.com>\n"
 "Language-Team: Belarusian <https://hosted.weblate.org/projects/weblate/"
@@ -61,11 +61,11 @@ msgstr "Націсніце Cmd+I, потым %s, каб адхіліць гэт�
 msgid "Press Ctrl+I then %s to dismiss this."
 msgstr "Націсніце Ctrl+I, потым %s, каб адхіліць гэта."
 
-#: weblate/static/editor/full.js:489
+#: weblate/static/editor/full.js:495
 msgid "Copy"
 msgstr "Капіяваць"
 
-#: weblate/static/editor/full.js:495
+#: weblate/static/editor/full.js:501
 msgid "Copy and save"
 msgstr "Капіяваць і захаваць"
 
@@ -73,264 +73,264 @@ msgstr "Капіяваць і захаваць"
 msgid "There are some unsaved changes, are you sure you want to leave?"
 msgstr "Ёсць незахаваныя змены. Сапраўды хочаце выйсці?"
 
-#: weblate/static/loader-bootstrap.js:158
+#: weblate/static/loader-bootstrap.js:160
 msgid "Add to screenshot"
 msgstr "Дадаць у здымак экрана"
 
-#: weblate/static/loader-bootstrap.js:175
+#: weblate/static/loader-bootstrap.js:177
 msgid "Error loading search results!"
 msgstr "Памылка загрузкі вынікаў пошуку!"
 
-#: weblate/static/loader-bootstrap.js:179
+#: weblate/static/loader-bootstrap.js:181
 msgid "No new matching source strings found."
 msgstr "Не знойдзена новых адпаведных зыходных радкоў."
 
-#: weblate/static/loader-bootstrap.js:245
+#: weblate/static/loader-bootstrap.js:247
 msgid "Sort this column"
 msgstr "Упарадкаваць слупок"
 
-#: weblate/static/loader-bootstrap.js:454
+#: weblate/static/loader-bootstrap.js:460
 msgid "Error while loading page:"
 msgstr "Памылка пры загрузцы старонкі:"
 
-#: weblate/static/loader-bootstrap.js:615
-#: weblate/static/loader-bootstrap.js:622
+#: weblate/static/loader-bootstrap.js:621
+#: weblate/static/loader-bootstrap.js:628
 msgid "Sunday"
 msgstr "Нядзеля"
 
-#: weblate/static/loader-bootstrap.js:616
+#: weblate/static/loader-bootstrap.js:622
 msgid "Monday"
 msgstr "Панядзелак"
 
-#: weblate/static/loader-bootstrap.js:617
+#: weblate/static/loader-bootstrap.js:623
 msgid "Tuesday"
 msgstr "Аўторак"
 
-#: weblate/static/loader-bootstrap.js:618
+#: weblate/static/loader-bootstrap.js:624
 msgid "Wednesday"
 msgstr "Серада"
 
-#: weblate/static/loader-bootstrap.js:619
+#: weblate/static/loader-bootstrap.js:625
 msgid "Thursday"
 msgstr "Чацвер"
 
-#: weblate/static/loader-bootstrap.js:620
+#: weblate/static/loader-bootstrap.js:626
 msgid "Friday"
 msgstr "Пятніца"
 
-#: weblate/static/loader-bootstrap.js:621
+#: weblate/static/loader-bootstrap.js:627
 msgid "Saturday"
 msgstr "Субота"
 
-#: weblate/static/loader-bootstrap.js:625
-#: weblate/static/loader-bootstrap.js:632
+#: weblate/static/loader-bootstrap.js:631
+#: weblate/static/loader-bootstrap.js:638
 msgctxt "Short (for example three letter) name of day in week"
 msgid "Sun"
 msgstr "Ндз"
 
-#: weblate/static/loader-bootstrap.js:626
+#: weblate/static/loader-bootstrap.js:632
 msgctxt "Short (for example three letter) name of day in week"
 msgid "Mon"
 msgstr "Пан"
 
-#: weblate/static/loader-bootstrap.js:627
+#: weblate/static/loader-bootstrap.js:633
 msgctxt "Short (for example three letter) name of day in week"
 msgid "Tue"
 msgstr "Аўт"
 
-#: weblate/static/loader-bootstrap.js:628
+#: weblate/static/loader-bootstrap.js:634
 msgctxt "Short (for example three letter) name of day in week"
 msgid "Wed"
 msgstr "Сер"
 
-#: weblate/static/loader-bootstrap.js:629
+#: weblate/static/loader-bootstrap.js:635
 msgctxt "Short (for example three letter) name of day in week"
 msgid "Thu"
 msgstr "Чац"
 
-#: weblate/static/loader-bootstrap.js:630
+#: weblate/static/loader-bootstrap.js:636
 msgctxt "Short (for example three letter) name of day in week"
 msgid "Fri"
 msgstr "Пят"
 
-#: weblate/static/loader-bootstrap.js:631
+#: weblate/static/loader-bootstrap.js:637
 msgctxt "Short (for example three letter) name of day in week"
 msgid "Sat"
 msgstr "Суб"
 
-#: weblate/static/loader-bootstrap.js:635
-#: weblate/static/loader-bootstrap.js:642
+#: weblate/static/loader-bootstrap.js:641
+#: weblate/static/loader-bootstrap.js:648
 msgctxt "Minimal (for example two letter) name of day in week"
 msgid "Su"
 msgstr "Нд"
 
-#: weblate/static/loader-bootstrap.js:636
+#: weblate/static/loader-bootstrap.js:642
 msgctxt "Minimal (for example two letter) name of day in week"
 msgid "Mo"
 msgstr "Пн"
 
-#: weblate/static/loader-bootstrap.js:637
+#: weblate/static/loader-bootstrap.js:643
 msgctxt "Minimal (for example two letter) name of day in week"
 msgid "Tu"
 msgstr "Аў"
 
-#: weblate/static/loader-bootstrap.js:638
+#: weblate/static/loader-bootstrap.js:644
 msgctxt "Minimal (for example two letter) name of day in week"
 msgid "We"
 msgstr "Ср"
 
-#: weblate/static/loader-bootstrap.js:639
+#: weblate/static/loader-bootstrap.js:645
 msgctxt "Minimal (for example two letter) name of day in week"
 msgid "Th"
 msgstr "Чц"
 
-#: weblate/static/loader-bootstrap.js:640
+#: weblate/static/loader-bootstrap.js:646
 msgctxt "Minimal (for example two letter) name of day in week"
 msgid "Fr"
 msgstr "Пт"
 
-#: weblate/static/loader-bootstrap.js:641
+#: weblate/static/loader-bootstrap.js:647
 msgctxt "Minimal (for example two letter) name of day in week"
 msgid "Sa"
 msgstr "Сб"
 
-#: weblate/static/loader-bootstrap.js:645
+#: weblate/static/loader-bootstrap.js:651
 msgid "January"
 msgstr "Студзень"
 
-#: weblate/static/loader-bootstrap.js:646
+#: weblate/static/loader-bootstrap.js:652
 msgid "February"
 msgstr "Люты"
 
-#: weblate/static/loader-bootstrap.js:647
+#: weblate/static/loader-bootstrap.js:653
 msgid "March"
 msgstr "Сакавік"
 
-#: weblate/static/loader-bootstrap.js:648
+#: weblate/static/loader-bootstrap.js:654
 msgid "April"
 msgstr "Красавік"
 
-#: weblate/static/loader-bootstrap.js:649
+#: weblate/static/loader-bootstrap.js:655
 msgid "May"
 msgstr "Май"
 
-#: weblate/static/loader-bootstrap.js:650
+#: weblate/static/loader-bootstrap.js:656
 msgid "June"
 msgstr "Чэрвень"
 
-#: weblate/static/loader-bootstrap.js:651
+#: weblate/static/loader-bootstrap.js:657
 msgid "July"
 msgstr "Ліпень"
 
-#: weblate/static/loader-bootstrap.js:652
+#: weblate/static/loader-bootstrap.js:658
 msgid "August"
 msgstr "Жнівень"
 
-#: weblate/static/loader-bootstrap.js:653
+#: weblate/static/loader-bootstrap.js:659
 msgid "September"
 msgstr "Верасень"
 
-#: weblate/static/loader-bootstrap.js:654
+#: weblate/static/loader-bootstrap.js:660
 msgid "October"
 msgstr "Кастрычнік"
 
-#: weblate/static/loader-bootstrap.js:655
+#: weblate/static/loader-bootstrap.js:661
 msgid "November"
 msgstr "Лістапад"
 
-#: weblate/static/loader-bootstrap.js:656
+#: weblate/static/loader-bootstrap.js:662
 msgid "December"
 msgstr "Снежань"
 
-#: weblate/static/loader-bootstrap.js:659
+#: weblate/static/loader-bootstrap.js:665
 msgctxt "Short name of month"
 msgid "Jan"
 msgstr "Сту"
 
-#: weblate/static/loader-bootstrap.js:660
+#: weblate/static/loader-bootstrap.js:666
 msgctxt "Short name of month"
 msgid "Feb"
 msgstr "Лют"
 
-#: weblate/static/loader-bootstrap.js:661
+#: weblate/static/loader-bootstrap.js:667
 msgctxt "Short name of month"
 msgid "Mar"
 msgstr "Сак"
 
-#: weblate/static/loader-bootstrap.js:662
+#: weblate/static/loader-bootstrap.js:668
 msgctxt "Short name of month"
 msgid "Apr"
 msgstr "Кра"
 
-#: weblate/static/loader-bootstrap.js:663
+#: weblate/static/loader-bootstrap.js:669
 msgctxt "Short name of month"
 msgid "May"
 msgstr "Май"
 
-#: weblate/static/loader-bootstrap.js:664
+#: weblate/static/loader-bootstrap.js:670
 msgctxt "Short name of month"
 msgid "Jun"
 msgstr "Чэр"
 
-#: weblate/static/loader-bootstrap.js:665
+#: weblate/static/loader-bootstrap.js:671
 msgctxt "Short name of month"
 msgid "Jul"
 msgstr "Ліп"
 
-#: weblate/static/loader-bootstrap.js:666
+#: weblate/static/loader-bootstrap.js:672
 msgctxt "Short name of month"
 msgid "Aug"
 msgstr "Жні"
 
-#: weblate/static/loader-bootstrap.js:667
+#: weblate/static/loader-bootstrap.js:673
 msgctxt "Short name of month"
 msgid "Sep"
 msgstr "Вер"
 
-#: weblate/static/loader-bootstrap.js:668
+#: weblate/static/loader-bootstrap.js:674
 msgctxt "Short name of month"
 msgid "Oct"
 msgstr "Кас"
 
-#: weblate/static/loader-bootstrap.js:669
+#: weblate/static/loader-bootstrap.js:675
 msgctxt "Short name of month"
 msgid "Nov"
 msgstr "Ліс"
 
-#: weblate/static/loader-bootstrap.js:670
+#: weblate/static/loader-bootstrap.js:676
 msgctxt "Short name of month"
 msgid "Dec"
 msgstr "Сне"
 
-#: weblate/static/loader-bootstrap.js:672
+#: weblate/static/loader-bootstrap.js:678
 msgid "Today"
 msgstr "Сёння"
 
-#: weblate/static/loader-bootstrap.js:673
+#: weblate/static/loader-bootstrap.js:679
 msgid "Clear"
 msgstr "Ачысціць"
 
-#: weblate/static/loader-bootstrap.js:833
+#: weblate/static/loader-bootstrap.js:839
 msgid "Text copied to clipboard."
 msgstr "Тэкст скапіяваны ў буфер абмену."
 
-#: weblate/static/loader-bootstrap.js:836
+#: weblate/static/loader-bootstrap.js:842
 msgid "Please press Ctrl+C to copy."
 msgstr "Каб скапіяваць, націсніце Ctrl+C."
 
-#: weblate/static/loader-bootstrap.js:860
+#: weblate/static/loader-bootstrap.js:866
 msgid "Search…"
 msgstr "Пошук…"
 
-#: weblate/static/loader-bootstrap.js:861
+#: weblate/static/loader-bootstrap.js:867
 msgid "Available:"
 msgstr "Даступна:"
 
-#: weblate/static/loader-bootstrap.js:862
+#: weblate/static/loader-bootstrap.js:868
 msgid "Chosen:"
 msgstr "Абрана:"
 
-#: weblate/static/loader-bootstrap.js:1121
+#: weblate/static/loader-bootstrap.js:1127
 msgid "Weblate is now scanning the repository, please be patient."
 msgstr "Weblate зараз скануе рэпазіторый. Калі ласка, пачакайце."
 

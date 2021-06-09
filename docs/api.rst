@@ -780,7 +780,6 @@ Projects
     :>json boolean set_language_team: :ref:`project-set_language_team`
     :>json boolean enable_hooks: :ref:`project-enable_hooks`
     :>json string instructions: :ref:`project-instructions`
-    :>json string mail: :ref:`project-mail`
     :>json string language_aliases: :ref:`project-language_aliases`
 
     **Example JSON data:**
@@ -1557,6 +1556,44 @@ Components
     :type component: string
     :>json array results: array of translation statistics objects; see :http:get:`/api/translations/(string:project)/(string:component)/(string:language)/statistics/`
 
+.. http:get:: /api/components/(string:project)/(string:component)/links/
+
+    Returns projects linked with a component.
+
+    .. versionadded:: 4.5
+
+    :param project: Project URL slug
+    :type project: string
+    :param component: Component URL slug
+    :type component: string
+    :>json array projects: associated projects; see :http:get:`/api/projects/(string:project)/`
+
+.. http:post:: /api/components/(string:project)/(string:component)/links/
+
+    Associate project with a component.
+
+    .. versionadded:: 4.5
+
+    :param project: Project URL slug
+    :type project: string
+    :param component: Component URL slug
+    :type component: string
+    :form string project_slug: Project slug
+
+.. http:delete:: /api/components/(string:project)/(string:component)/links/(string:project_slug)/
+
+    Remove association of a project with a component.
+
+    .. versionadded:: 4.5
+
+    :param project: Project URL slug
+    :type project: string
+    :param component: Component URL slug
+    :type component: string
+    :param project_slug: Slug of the project to remove
+    :type project_slug: string
+
+
 Translations
 ++++++++++++
 
@@ -1728,6 +1765,11 @@ Translations
     :<json string key: Name of translation unit
     :<json string value: The translation unit value
 
+    .. seealso::
+
+       :ref:`component-manage_units`,
+       :ref:`adding-new-strings`
+
 .. http:post:: /api/translations/(string:project)/(string:component)/(string:language)/autotranslate/
 
     Trigger automatic translation.
@@ -1781,7 +1823,7 @@ Translations
     :form file file: Uploaded file
     :form string email: Author e-mail
     :form string author: Author name
-    :form string method: Upload method (``translate``, ``approve``, ``suggest``, ``fuzzy``, ``replace``, ``source``), see :ref:`upload-method`
+    :form string method: Upload method (``translate``, ``approve``, ``suggest``, ``fuzzy``, ``replace``, ``source``, ``add``), see :ref:`upload-method`
     :form string fuzzy: Fuzzy (marked for edit) strings processing (*empty*, ``process``, ``approve``)
 
     **CURL example:**
@@ -1851,6 +1893,12 @@ Translations
 
 Units
 +++++
+
+A `unit` is a single piece of a translation which pairs a source string with a
+corresponding translated string and also contains some related metadata. The
+term is derived from the `Translate Toolkit
+<http://docs.translatehouse.org/projects/translate-toolkit/en/latest/api/storage.html#translate.storage.base.TranslationUnit>`_
+and XLIFF.
 
 .. versionadded:: 2.10
 
@@ -1965,7 +2013,6 @@ Changes
     :>json string unit: URL of a related unit object
     :>json string translation: URL of a related translation object
     :>json string component: URL of a related component object
-    :>json string glossary_term: URL of a related glossary term object
     :>json string user: URL of a related user object
     :>json string author: URL of a related author object
     :>json timestamp timestamp: event timestamp
@@ -2216,203 +2263,10 @@ Component lists
 Glossary
 +++++++++
 
-.. http:get:: /api/glossary/
+.. versionchanged:: 4.5
 
-    Returns a list of all glossaries which are associated with a project that user has access to.
-
-    .. seealso::
-
-        Language object attributes are documented at :http:get:`/api/languages/(string:language)/`.
-
-.. http:get:: /api/glossary/(int:id)/
-
-    Returns information about a glossary.
-
-    :param id: Glossary id
-    :type id: int
-    :>json string name: Language code
-    :>json string color: Text direction
-    :>json object source_language: Object of language plural information
-    :>json array projects: link to associated projects; see :http:get:`/api/projects/(string:project)/`
-
-    **Example JSON data:**
-
-    .. code-block:: json
-
-        {
-            "name": "Hello",
-            "id": 1,
-            "color": "silver",
-            "source_language": {
-                "code": "en",
-                "name": "English",
-                "plural": {
-                    "id": 75,
-                    "source": 0,
-                    "number": 2,
-                    "formula": "n != 1",
-                    "type": 1
-                },
-                "aliases": [
-                    "english",
-                    "en_en",
-                    "base",
-                    "source",
-                    "eng"
-                ],
-                "direction": "ltr",
-                "web_url": "http://example.com/languages/en/",
-                "url": "http://example.com/api/languages/en/",
-                "statistics_url": "http://example.com/api/languages/en/statistics/"
-            },
-            "project": {
-                "name": "Hello",
-                "slug": "hello",
-                "id": 1,
-                "source_language": {
-                    "code": "en",
-                    "name": "English",
-                    "plural": {
-                        "id": 75,
-                        "source": 0,
-                        "number": 2,
-                        "formula": "n != 1",
-                        "type": 1
-                    },
-                    "aliases": [
-                        "english",
-                        "en_en",
-                        "base",
-                        "source",
-                        "eng"
-                    ],
-                    "direction": "ltr",
-                    "web_url": "http://example.com/languages/en/",
-                    "url": "http://example.com/api/languages/en/",
-                    "statistics_url": "http://example.com/api/languages/en/statistics/"
-                },
-                "web_url": "http://example.com/projects/demo1/",
-                "url": "http://example.com/api/projects/demo1/",
-                "components_list_url": "http://example.com/api/projects/demo1/components/",
-                "repository_url": "http://example.com/api/projects/demo1/repository/",
-                "statistics_url": "http://example.com/api/projects/demo1/statistics/",
-                "changes_list_url": "http://example.com/api/projects/demo1/changes/",
-                "languages_url": "http://example.com/api/projects/demo1/languages/"
-            },
-            "projects_url": "http://example.com/api/glossary/7/projects/",
-            "terms_url": "http://example.com/api/glossary/7/terms/",
-            "url": "http://example.com/api/glossary/7/"
-        }
-
-.. http:put:: /api/glossary/(int:id)/
-
-    Changes the glossary parameters.
-
-    :param id: Glossary id
-    :type id: int
-    :<json string name: Language name
-    :<json string color: Language direction
-    :<json object source_language: Language plural details
-
-.. http:patch:: /api/glossary/(int:id)/
-
-    Changes the glossary parameters.
-
-    :param id: Glossary id
-    :type id: int
-    :<json string name: Language name
-    :<json string color: Language direction
-    :<json object source_language: Language plural details
-
-.. http:delete:: /api/glossary/(int:id)/
-
-    Deletes the glossary.
-
-    :param id: Glossary id
-    :type id: int
-
-.. http:get:: /api/glossary/(int:id)/projects/
-
-    Returns projects linked with a glossary.
-
-    :param id: Glossary id
-    :type id: int
-    :>json array projects: associated projects; see :http:get:`/api/projects/(string:project)/`
-
-.. http:post:: /api/glossary/(int:id)/projects/
-
-    Associate project with a glossary.
-
-    :param id: Glossary id
-    :type id: int
-    :form string project_slug: Project slug
-
-.. http:delete:: /api/glossary/(int:id)/projects/
-
-    Remove association of a project with a glossary.
-
-    :param id: Glossary id
-    :type id: int
-    :form string project_slug: Project slug
-
-.. http:get:: /api/glossary/(int:id)/terms/
-
-    List terms of a glossary.
-
-    :param id: Glossary id
-    :type id: int
-
-.. http:post:: /api/glossary/(int:id)/terms/
-
-    Associate terms with a glossary.
-
-    :param id: Glossary id
-    :type id: int
-    :<json object language: Language of the term
-    :<json string source: Source string for the term
-    :<json string target: Target string for the term
-
-.. http:get:: /api/glossary/(int:id)/terms/(int:term_id)/
-
-    Get a term associated with a glossary.
-
-    :param id: Glossary id
-    :type id: int
-    :param term_id: ID of term
-    :type term_id: int
-
-.. http:put:: /api/glossary/(int:id)/terms/(int:term_id)/
-
-    Edit a term associated with a glossary.
-
-    :param id: Glossary id
-    :type id: int
-    :param term_id: ID of term
-    :type term_id: int
-    :<json object language: Language of the term
-    :<json string source: Source string for the term
-    :<json string target: Target string for the term
-
-.. http:patch:: /api/glossary/(int:id)/terms/(int:term_id)/
-
-    Edit a term associated with a glossary.
-
-    :param id: Glossary id
-    :type id: int
-    :param term_id: ID of term
-    :type term_id: int
-    :<json object language: Language of the term
-    :<json string source: Source string for the term
-    :<json string target: Target string for the term
-
-.. http:delete:: /api/glossary/(int:id)/terms/(int:term_id)/
-
-    Delete a term associated with a glossary.
-
-    :param id: Glossary id
-    :type id: int
-    :param term_id: ID of term
-    :type term_id: int
+   Glossaries are now stored as regular components, translations and strings,
+   please use respective API instead.
 
 Tasks
 +++++
@@ -2481,7 +2335,7 @@ update individual repositories; see
 
         :ref:`github-setup`
             For instruction on setting up GitHub integration
-        https://docs.github.com/en/free-pro-team@latest/github/extending-github/about-webhooks
+        https://docs.github.com/en/github/extending-github/about-webhooks
             Generic information about GitHub Webhooks
         :setting:`ENABLE_HOOKS`
             For enabling hooks for whole Weblate

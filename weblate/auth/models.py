@@ -38,6 +38,7 @@ from django.utils.translation import pgettext
 from weblate.auth.data import (
     ACL_GROUPS,
     GLOBAL_PERM_NAMES,
+    PERMISSION_NAMES,
     SELECTION_ALL,
     SELECTION_ALL_PROTECTED,
     SELECTION_ALL_PUBLIC,
@@ -47,6 +48,7 @@ from weblate.auth.data import (
 from weblate.auth.permissions import SPECIALS, check_global_permission, check_permission
 from weblate.auth.utils import (
     create_anonymous,
+    is_django_permission,
     migrate_groups,
     migrate_permissions,
     migrate_roles,
@@ -176,7 +178,9 @@ class Group(models.Model):
             )
         elif self.project_selection == SELECTION_COMPONENT_LIST:
             self.projects.set(
-                Project.objects.filter(component__componentlist=self.componentlist),
+                Project.objects.filter(
+                    component__componentlist__in=self.componentlists.all()
+                ),
                 clear=True,
             )
 
@@ -446,14 +450,14 @@ class User(AbstractBaseUser):
         return all(self.has_perm(perm, obj) for perm in perm_list)
 
     # pylint: disable=keyword-arg-before-vararg
-    def has_perm(self, perm, obj=None):
+    def has_perm(self, perm: str, obj=None):
         """Permission check."""
         # Weblate global scope permissions
         if perm in GLOBAL_PERM_NAMES:
             return check_global_permission(self, perm, obj)
 
         # Compatibility API for admin interface
-        if obj is None:
+        if is_django_permission(perm):
             if not self.is_superuser:
                 return False
 
@@ -461,13 +465,9 @@ class User(AbstractBaseUser):
             allowed = settings.AUTH_RESTRICT_ADMINS.get(self.username)
             return allowed is None or perm in allowed
 
-        # Validate perms, this is expensive to perform, so this only in test by
-        # default
-        if settings.AUTH_VALIDATE_PERMS and ":" not in perm:
-            try:
-                Permission.objects.get(codename=perm)
-            except Permission.DoesNotExist:
-                raise ValueError(f"Invalid permission: {perm}")
+        # Validate perms
+        if perm not in SPECIALS and perm not in PERMISSION_NAMES:
+            raise ValueError(f"Invalid permission: {perm}")
 
         # Special permission functions
         if perm in SPECIALS:
@@ -505,7 +505,7 @@ class User(AbstractBaseUser):
         """List of allowed projects."""
         if self.is_superuser:
             return Project.objects.order()
-        return Project.objects.filter(pk__in=self.allowed_project_ids)
+        return Project.objects.filter(pk__in=self.allowed_project_ids).order()
 
     @cached_property
     def allowed_project_ids(self):
@@ -526,7 +526,7 @@ class User(AbstractBaseUser):
         Ensure ACL filtering applies (the user could have been removed
         from the project meanwhile)
         """
-        return self.profile.watched.filter(id__in=self.allowed_project_ids)
+        return self.profile.watched.filter(id__in=self.allowed_project_ids).order()
 
     @cached_property
     def owned_projects(self):
@@ -613,7 +613,9 @@ class AutoGroup(models.Model):
         verbose_name=_("Regular expression for e-mail address"),
         max_length=200,
         default="^.*$",
-        help_text=_("Users with matching e-mail address will be added to this group."),
+        help_text=_(
+            "Users with e-mail addresses found to match will be added to this group."
+        ),
     )
     group = models.ForeignKey(
         Group, verbose_name=_("Group to assign"), on_delete=models.deletion.CASCADE
@@ -781,7 +783,6 @@ def cleanup_group_acl(sender, instance, **kwargs):
 class WeblateAuthConf(AppConf):
     """Authentication settings."""
 
-    AUTH_VALIDATE_PERMS = False
     AUTH_RESTRICT_ADMINS = {}
 
     # Anonymous user name

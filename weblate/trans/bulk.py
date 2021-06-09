@@ -21,7 +21,8 @@
 from django.db import transaction
 
 from weblate.checks.flags import Flags
-from weblate.trans.models import Change, Component, Unit, update_source
+from weblate.trans.models import Change, Component, Unit
+from weblate.utils.db import get_nokey_args
 from weblate.utils.state import STATE_APPROVED, STATE_FUZZY, STATE_TRANSLATED
 
 EDITABLE_STATES = STATE_FUZZY, STATE_TRANSLATED, STATE_APPROVED
@@ -36,8 +37,9 @@ def bulk_perform(
     remove_flags,
     add_labels,
     remove_labels,
+    project,
 ):
-    matching = unit_set.search(query).prefetch()
+    matching = unit_set.search(query, project=project).prefetch()
     components = Component.objects.filter(
         id__in=matching.values_list("translation__component_id", flat=True)
     )
@@ -53,7 +55,7 @@ def bulk_perform(
             component.commit_pending("bulk edit", user)
             component_units = matching.filter(
                 translation__component=component
-            ).select_for_update()
+            ).select_for_update(**get_nokey_args())
 
             can_edit_source = user is None or user.has_perm("source.edit", component)
 
@@ -117,8 +119,8 @@ def bulk_perform(
                     unit.is_bulk_edit = True
                     unit.pending = True
                     unit.state = target_state
-                    update_source(Unit, unit)
+                    unit.source_unit_save()
 
-        component.invalidate_stats_deep()
+        component.invalidate_cache()
 
     return updated

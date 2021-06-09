@@ -212,6 +212,9 @@ class RepoTestMixin:
             kwargs["name"] = "Test"
         kwargs["slug"] = kwargs["name"].lower()
 
+        if "manage_units" not in kwargs and template:
+            kwargs["manage_units"] = True
+
         if branch is None:
             branch = VCS_REGISTRY[vcs].default_branch
 
@@ -381,6 +384,9 @@ class RepoTestMixin:
     def create_winrc(self):
         return self._create_component("rc", "winrc/*.rc", "winrc/en-US.rc")
 
+    def create_tbx(self):
+        return self._create_component("tbx", "tbx/*.tbx")
+
     def create_link(self, **kwargs):
         parent = self.create_iphone(*kwargs)
         return Component.objects.create(
@@ -394,11 +400,14 @@ class RepoTestMixin:
         )
 
     def create_link_existing(self):
+        component = self.component
+        if "linked_childs" in component.__dict__:
+            del component.__dict__["linked_childs"]
         return Component.objects.create(
             name="Test2",
             slug="test2",
             project=self.project,
-            repo="weblate://test/test",
+            repo=component.get_repo_link_url(),
             file_format="po",
             filemask="po-duplicates/*.dpo",
             new_lang="contact",

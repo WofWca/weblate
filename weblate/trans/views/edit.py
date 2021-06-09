@@ -19,12 +19,13 @@
 
 import json
 import time
+from math import ceil
 
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.contrib.messages import get_messages
 from django.core.exceptions import PermissionDenied
-from django.db.models import Q
+from django.db.models import Case, IntegerField, Q, When
 from django.http import (
     HttpResponse,
     HttpResponseBadRequest,
@@ -32,14 +33,16 @@ from django.http import (
     JsonResponse,
 )
 from django.shortcuts import get_object_or_404, redirect
+from django.urls import reverse
 from django.utils.http import urlencode
 from django.utils.translation import gettext as _
 from django.utils.translation import gettext_noop
 from django.views.decorators.http import require_POST
 
+from weblate.checks.flags import Flags
 from weblate.checks.models import CHECKS, get_display_checks
 from weblate.glossary.forms import TermForm
-from weblate.glossary.models import Term
+from weblate.glossary.models import get_glossary_terms
 from weblate.lang.models import Language
 from weblate.machinery import MACHINE_TRANSLATION_SERVICES
 from weblate.trans.forms import (
@@ -49,11 +52,11 @@ from weblate.trans.forms import (
     CommentForm,
     ContextForm,
     MergeForm,
-    NewUnitForm,
     PositionSearchForm,
     RevertForm,
     TranslationForm,
     ZenTranslationForm,
+    get_new_unit_form,
 )
 from weblate.trans.models import Change, Comment, Suggestion, Unit, Vote
 from weblate.trans.tasks import auto_translate
@@ -67,6 +70,7 @@ from weblate.trans.util import (
 from weblate.utils import messages
 from weblate.utils.antispam import is_spam
 from weblate.utils.hash import hash_to_checksum
+from weblate.utils.messages import get_message_kind
 from weblate.utils.ratelimit import revert_rate_limit, session_ratelimit_post
 from weblate.utils.state import STATE_FUZZY, STATE_TRANSLATED
 from weblate.utils.stats import ProjectLanguage
@@ -114,16 +118,33 @@ def get_other_units(unit):
     propagation = component.allow_translation_propagation
     same = None
 
-    query = Q()
-    if unit.source:
-        query |= Q(source=unit.source)
-    if unit.context and component.has_template():
-        query |= Q(context=unit.context)
+    if unit.source and unit.context:
+        match = Q(source=unit.source) & Q(context=unit.context)
+        if component.has_template():
+            query = Q(source=unit.source) | Q(context=unit.context)
+        else:
+            query = Q(source=unit.source)
+    elif unit.source:
+        match = Q(source=unit.source) & Q(context="")
+        query = Q(source=unit.source)
+    elif unit.context:
+        match = Q(context=unit.context)
+        query = Q(context=unit.context)
+    else:
+        return result
 
-    units = Unit.objects.prefetch_full().filter(
-        query,
-        translation__component__project=component.project,
-        translation__language=translation.language,
+    units = (
+        Unit.objects.filter(
+            query,
+            translation__component__project=component.project,
+            translation__language=translation.language,
+        )
+        .annotate(
+            matches_current=Case(
+                When(condition=match, then=1), default=0, output_field=IntegerField()
+            )
+        )
+        .order_by("-matches_current")
     )
 
     units_count = units.count()
@@ -180,7 +201,7 @@ def cleanup_session(session):
             del session[key]
 
 
-def search(base, unit_set, request):
+def search(base, project, unit_set, request, blank: bool = False):
     """Perform search or returns cached search results."""
     # Possible new search
     form = PositionSearchForm(user=request.user, data=request.GET, show_builder=False)
@@ -215,7 +236,7 @@ def search(base, unit_set, request):
         search_result.update(request.session[session_key])
         return search_result
 
-    allunits = unit_set.search(cleaned_data.get("q", "")).distinct()
+    allunits = unit_set.search(cleaned_data.get("q", ""), project=project).distinct()
 
     # Grab unit IDs
     unit_ids = list(
@@ -223,7 +244,7 @@ def search(base, unit_set, request):
     )
 
     # Check empty search results
-    if not unit_ids:
+    if not unit_ids and not blank:
         messages.warning(request, _("No string matched your search!"))
         return redirect(base)
 
@@ -276,12 +297,15 @@ def perform_suggestion(unit, form, request):
 
 def perform_translation(unit, form, request):
     """Handle translation and stores it to a backend."""
+    user = request.user
+    profile = user.profile
+    project = unit.translation.component.project
     # Remember old checks
     oldchecks = unit.all_checks_names
 
     # Save
     saved = unit.translate(
-        request.user, form.cleaned_data["target"], form.cleaned_data["state"]
+        user, form.cleaned_data["target"], form.cleaned_data["state"]
     )
 
     # Warn about applied fixups
@@ -296,6 +320,29 @@ def perform_translation(unit, form, request):
     if not saved:
         revert_rate_limit("translate", request)
         return True
+
+    # Auto subscribe user
+    if not profile.languages.exists():
+        language = unit.translation.language
+        profile.languages.add(language)
+        messages.info(
+            request,
+            _(
+                "Added %(language)s to your translated languages. "
+                "You can adjust them in the settings."
+            )
+            % {"language": language},
+        )
+    if profile.auto_watch and not profile.watched.filter(pk=project.pk).exists():
+        profile.watched.add(project)
+        messages.info(
+            request,
+            _(
+                "Added %(project)s to your watched projects. "
+                "You can adjust them and this behavior in the settings."
+            )
+            % {"project": project},
+        )
 
     # Get new set of checks
     newchecks = unit.all_checks_names
@@ -464,7 +511,7 @@ def translate(request, project, component, lang):
     obj, project, unit_set = parse_params(request, project, component, lang)
 
     # Search results
-    search_result = search(obj, unit_set, request)
+    search_result = search(obj, project, unit_set, request)
 
     # Handle redirects
     if isinstance(search_result, HttpResponse):
@@ -555,7 +602,7 @@ def translate(request, project, component, lang):
 
     # Prepare form
     form = TranslationForm(request.user, unit)
-    sort = get_sort_name(request)
+    sort = get_sort_name(request, obj)
 
     return render(
         request,
@@ -591,8 +638,8 @@ def translate(request, project, component, lang):
             "search_form": search_result["form"].reset_offset(),
             "secondary": secondary,
             "locked": locked,
-            "glossary": Term.objects.get_terms(unit),
-            "addterm_form": TermForm(project),
+            "glossary": get_glossary_terms(unit),
+            "addterm_form": TermForm(unit),
             "last_changes": unit.change_set.prefetch().order()[:10],
             "screenshots": (
                 unit.source_unit.screenshots.all() | unit.screenshots.all()
@@ -600,6 +647,9 @@ def translate(request, project, component, lang):
             "last_changes_url": urlencode(unit.translation.get_reverse_url_kwargs()),
             "display_checks": list(get_display_checks(unit)),
             "machinery_services": json.dumps(list(MACHINE_TRANSLATION_SERVICES.keys())),
+            "new_unit_form": get_new_unit_form(
+                unit.translation, request.user, initial={"variant": unit.source}
+            ),
         },
     )
 
@@ -718,10 +768,10 @@ def resolve_comment(request, pk):
     return redirect_next(request.POST.get("next"), fallback_url)
 
 
-def get_zen_unitdata(obj, unit_set, request):
+def get_zen_unitdata(obj, project, unit_set, request):
     """Load unit data for zen mode."""
     # Search results
-    search_result = search(obj, unit_set, request)
+    search_result = search(obj, project, unit_set, request)
 
     # Handle redirects
     if isinstance(search_result, HttpResponse):
@@ -730,7 +780,7 @@ def get_zen_unitdata(obj, unit_set, request):
     offset = search_result["offset"] - 1
     search_result["last_section"] = offset + 20 >= len(search_result["ids"])
 
-    units = unit_set.filter(pk__in=search_result["ids"][offset : offset + 20]).order()
+    units = unit_set.get_ordered(search_result["ids"][offset : offset + 20])
 
     unitdata = [
         {
@@ -756,8 +806,8 @@ def zen(request, project, component, lang):
     """Generic entry point for translating, suggesting and searching."""
     obj, project, unit_set = parse_params(request, project, component, lang)
 
-    search_result, unitdata = get_zen_unitdata(obj, unit_set, request)
-    sort = get_sort_name(request)
+    search_result, unitdata = get_zen_unitdata(obj, project, unit_set, request)
+    sort = get_sort_name(request, obj)
 
     # Handle redirects
     if isinstance(search_result, HttpResponse):
@@ -788,7 +838,7 @@ def load_zen(request, project, component, lang):
     """Load additional units for zen editor."""
     obj, project, unit_set = parse_params(request, project, component, lang)
 
-    search_result, unitdata = get_zen_unitdata(obj, unit_set, request)
+    search_result, unitdata = get_zen_unitdata(obj, project, unit_set, request)
 
     # Handle redirects
     if isinstance(search_result, HttpResponse):
@@ -841,7 +891,10 @@ def save_zen(request, project, component, lang):
 
     storage = get_messages(request)
     if storage:
-        response["messages"] = [{"tags": m.tags, "text": m.message} for m in storage]
+        response["messages"] = [
+            {"tags": m.tags, "kind": get_message_kind(m.tags), "text": m.message}
+            for m in storage
+        ]
         tags = {m.tags for m in storage}
         if "error" in tags:
             response["state"] = "danger"
@@ -860,20 +913,31 @@ def new_unit(request, project, component, lang):
     if not request.user.has_perm("unit.add", translation):
         raise PermissionDenied()
 
-    form = NewUnitForm(request.user, request.POST)
+    form = get_new_unit_form(translation, request.user, request.POST)
     if not form.is_valid():
         show_form_errors(request, form)
     else:
-        key = form.cleaned_data["key"]
-        value = form.cleaned_data["value"][0]
-
-        if translation.unit_set.filter(context=key).exists():
-            messages.error(
-                request, _("Translation with this key seem to already exist!")
-            )
+        if form.unit_exists(translation):
+            messages.error(request, _("This string seems to already exist."))
         else:
-            translation.add_units(request, {key: value})
+            # This is slow way of detecting unit, add_units should directly
+            # create the database units, return them and they should be saved to
+            # file as regular pending ones.
+            existing = list(translation.unit_set.values_list("pk", flat=True))
+            translation.add_units(request, [form.as_tuple()])
             messages.success(request, _("New string has been added."))
+            new_units = translation.unit_set.exclude(pk__in=existing)
+            if form.cleaned_data["variant"]:
+                for new_unit in new_units:
+                    flags = Flags(new_unit.extra_flags)
+                    flags.set_value("variant", form.cleaned_data["variant"])
+                    new_unit.extra_flags = flags.format()
+                    new_unit.save(
+                        update_fields=["extra_flags"],
+                        same_content=True,
+                        run_checks=False,
+                    )
+                    return redirect(new_unit)
 
     return redirect(translation)
 
@@ -889,3 +953,43 @@ def delete_unit(request, unit_id):
 
     unit.translation.delete_unit(request, unit)
     return redirect(unit.translation)
+
+
+def browse(request, project, component, lang):
+    """Strings browsing."""
+    obj, project, unit_set = parse_params(request, project, component, lang)
+    search_result = search(obj, project, unit_set, request, blank=True)
+    offset = search_result["offset"]
+    page = 20
+    units = unit_set.get_ordered(
+        search_result["ids"][(offset - 1) * page : (offset - 1) * page + page]
+    )
+
+    base_unit_url = "{}?{}&offset=".format(
+        reverse("browse", kwargs=obj.get_reverse_url_kwargs()),
+        search_result["url"],
+    )
+    num_results = ceil(len(search_result["ids"]) / page)
+    sort = get_sort_name(request, obj)
+
+    return render(
+        request,
+        "browse.html",
+        {
+            "object": obj,
+            "project": project,
+            "units": units,
+            "search_query": search_result["query"],
+            "search_url": search_result["url"],
+            "search_form": search_result["form"].reset_offset(),
+            "filter_count": num_results,
+            "filter_pos": offset,
+            "filter_name": search_result["name"],
+            "first_unit_url": base_unit_url + "1",
+            "last_unit_url": base_unit_url + str(num_results),
+            "next_unit_url": base_unit_url + str(offset + 1),
+            "prev_unit_url": base_unit_url + str(offset - 1),
+            "sort_name": sort["name"],
+            "sort_query": sort["query"],
+        },
+    )

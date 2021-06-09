@@ -17,7 +17,8 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
-from django.core.exceptions import ObjectDoesNotExist
+from collections import defaultdict
+
 from django.db import models
 from django.template.loader import render_to_string
 from django.utils.functional import cached_property
@@ -116,13 +117,21 @@ class ErrorAlert(BaseAlert):
 
 
 class MultiAlert(BaseAlert):
+    occurrences_limit = 100
+
     def __init__(self, instance, occurrences):
         super().__init__(instance)
-        self.occurrences = self.process_occurrences(occurrences)
+        self.occurrences = self.process_occurrences(
+            occurrences[: self.occurrences_limit]
+        )
+        self.total_occurrences = len(occurrences)
+        self.missed_occurrences = self.total_occurrences > self.occurrences_limit
 
     def get_context(self, user):
         result = super().get_context(user)
         result["occurrences"] = self.occurrences
+        result["total_occurrences"] = self.total_occurrences
+        result["missed_occurrences"] = self.missed_occurrences
         return result
 
     def process_occurrences(self, occurrences):
@@ -130,17 +139,26 @@ class MultiAlert(BaseAlert):
         from weblate.trans.models import Unit
 
         processors = (
-            ("language_code", "language", Language, "code"),
-            ("unit_pk", "unit", Unit, "pk"),
+            ("language_code", "language", Language.objects.all(), "code"),
+            ("unit_pk", "unit", Unit.objects.prefetch(), "pk"),
         )
-        for occurrence in occurrences:
-            for key, target, obj, lookup in processors:
+        for key, target, base, lookup in processors:
+            # Extract list to fetch
+            updates = defaultdict(list)
+            for occurrence in occurrences:
                 if key not in occurrence:
                     continue
-                try:
-                    occurrence[target] = obj.objects.get(**{lookup: occurrence[key]})
-                except ObjectDoesNotExist:
-                    occurrence[target] = None
+
+                updates[occurrence[key]].append(occurrence)
+
+            if not updates:
+                continue
+
+            result = base.filter(**{f"{lookup}__in": updates.keys()})
+            for match in result:
+                for occurrence in updates[getattr(match, lookup)]:
+                    occurrence[target] = match
+
         return occurrences
 
 
@@ -328,3 +346,17 @@ class AmbiguousLanguage(BaseAlert):
 class NoLibreConditions(BaseAlert):
     # Translators: Name of an alert
     verbose = _("Does not meet libre hosting conditions.")
+
+
+@register
+class UnusedEnforcedCheck(BaseAlert):
+    verbose = _("Unused enforced checks.")
+    doc_page = "admin/checks"
+    doc_anchor = "enforcing-checks"
+
+
+@register
+class NoMaskMatches(BaseAlert):
+    verbose = _("No mask matches.")
+    doc_page = "admin/projects"
+    doc_anchor = "component-filemask"

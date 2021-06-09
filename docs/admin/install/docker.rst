@@ -245,11 +245,7 @@ Generic settings
 
 .. envvar:: WEBLATE_SITE_DOMAIN
 
-    Configures the site domain.
-
-    .. hint::
-
-        In case it is not set, the first item from :envvar:`WEBLATE_ALLOWED_HOSTS` is used.
+    Configures the site domain. This parameter is required.
 
     .. seealso::
 
@@ -594,6 +590,10 @@ Generic settings
 .. envvar:: WEBLATE_BASIC_LANGUAGES
 
     Configures :setting:`BASIC_LANGUAGES`.
+
+.. envvar:: WEBLATE_DEFAULT_AUTO_WATCH
+
+   Configures :setting:`DEFAULT_AUTO_WATCH`.
 
 Machine translation settings
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1239,8 +1239,8 @@ Custom configuration files
 
 You can additionally override the configuration in
 :file:`/app/data/settings-override.py` (see :ref:`docker-volume`). This is
-executed after all environment settings are loaded, so it gets completely set
-up, and can be used to customize anything.
+executed at the end of built-in settings, after all environment settings
+are loaded, and you can adjust or override them.
 
 Replacing logo and other static files
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

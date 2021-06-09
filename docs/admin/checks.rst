@@ -23,8 +23,8 @@ in the :setting:`AUTOFIX_LIST`, see :ref:`custom-check-modules`.
 
 .. _custom-checks:
 
-Customizing behavior
---------------------
+Customizing behavior using flags
+--------------------------------
 
 You can fine-tune the behavior of Weblate (mostly checks) for each source
 string (in source strings review, see :ref:`additional`) or in the
@@ -67,29 +67,37 @@ Here is a list of flags currently accepted:
 ``font-size:SIZE``
     Define font-size for rendering checks, see :ref:`fonts`.
 ``font-spacing:SPACING``
-    Define font-spacing for rendering checks, see :ref:`fonts`.
-``placeholders:NAME``
+    Define letter spacing for rendering checks, see :ref:`fonts`.
+``placeholders:NAME:NAME2:...``
     Placeholder strings expected in translation, see :ref:`check-placeholders`.
 ``replacements:FROM:TO:FROM2:TO2...``
     Replacements to perform when checking resulting text parameters (for
     example in :ref:`check-max-size` or :ref:`check-max-length`). The typical
     use case for this is to expand placeables to ensure that the text fits even
-    with long names, for example: ``replacements:%s:"John Doe"``.
+    with long values, for example: ``replacements:%s:"John Doe"``.
+``variants:SOURCE``
+    Mark this string as a variant of string with matching source. See :ref:`variants`.
 ``regex:REGEX``
     Regular expression to match translation, see :ref:`check-regex`.
-``python-format``, ``c-format``, ``php-format``, ``python-brace-format``, ``javascript-format``, ``c-sharp-format``, ``java-format``, ``java-messageformat``, ``auto-java-messageformat``, ``qt-format``, ``qt-plural-format``, ``ruby-format``, ``vue-format``
+``forbidden``
+    Indicates forbidden translation in a glossary, see :ref:`glossary-forbidden`.
+``python-format``, ``c-format``, ``php-format``, ``python-brace-format``, ``javascript-format``, ``c-sharp-format``, ``java-format``, ``java-messageformat``, ``lua-format``, ``auto-java-messageformat``, ``qt-format``, ``qt-plural-format``, ``ruby-format``, ``vue-format``
     Treats all strings like format strings, affects :ref:`check-python-format`,
     :ref:`check-c-format`, :ref:`check-php-format`,
     :ref:`check-qt-format`, :ref:`check-qt-plural-format`, :ref:`check-ruby-format`, :ref:`check-vue-format`,
     :ref:`check-python-brace-format`, :ref:`check-javascript-format`,
     :ref:`check-c-sharp-format`, :ref:`check-java-format`,
-    :ref:`check-java-messageformat`, :ref:`check-same`.
+    :ref:`check-java-messageformat`, :ref:`check-lua-format`, :ref:`check-same`.
 ``strict-same``
     Make "Unchanged translation" avoid using built-in words blacklist, see :ref:`check-same`.
+``check-glossary``
+    Enable the "Does not follow glossary" quality check.
 ``ignore-bbcode``
     Skip the "BBcode markup" quality check.
 ``ignore-duplicate``
     Skip the "Consecutive duplicated words" quality check.
+``ignore-check-glossary``
+    Skip the "Does not follow glossary" quality check.
 ``ignore-double-space``
     Skip the "Double space" quality check.
 ``ignore-angularjs-format``
@@ -108,6 +116,8 @@ Here is a list of flags currently accepted:
     Skip the "Java MessageFormat" quality check.
 ``ignore-javascript-format``
     Skip the "JavaScript format" quality check.
+``ignore-lua-format``
+    Skip the "Lua format" quality check.
 ``ignore-percent-placeholders``
     Skip the "Percent placeholders" quality check.
 ``ignore-perl-format``
@@ -225,6 +235,12 @@ Managing fonts
 --------------
 
 .. versionadded:: 3.7
+
+.. hint::
+
+   Fonts uploaded into Weblate are used purely for purposes of the
+   :ref:`check-max-size` check, they do not have an effect in Weblate user
+   interface.
 
 The :ref:`check-max-size` check used to calculate dimensions of the rendered
 text needs font to be loaded into Weblate and selected using a translation flag

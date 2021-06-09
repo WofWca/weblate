@@ -566,6 +566,7 @@ INSTALLED_APPS = [
     "weblate.utils",
     "weblate.vcs",
     "weblate.wladmin",
+    "weblate.metrics",
     "weblate",
     # Optional: Git exporter
     "weblate.gitexport",
@@ -915,6 +916,7 @@ CHECK_LIST = [
     "weblate.checks.format.CFormatCheck",
     "weblate.checks.format.PerlFormatCheck",
     "weblate.checks.format.JavaScriptFormatCheck",
+    "weblate.checks.format.LuaFormatCheck",
     "weblate.checks.format.CSharpFormatCheck",
     "weblate.checks.format.JavaFormatCheck",
     "weblate.checks.format.JavaMessageFormatCheck",
@@ -971,13 +973,16 @@ WEBLATE_ADDONS = [
     "weblate.addons.gettext.GettextCustomizeAddon",
     "weblate.addons.gettext.GettextAuthorComments",
     "weblate.addons.cleanup.CleanupAddon",
+    "weblate.addons.cleanup.RemoveBlankAddon",
     "weblate.addons.consistency.LangaugeConsistencyAddon",
     "weblate.addons.discovery.DiscoveryAddon",
+    "weblate.addons.autotranslate.AutoTranslateAddon",
     "weblate.addons.flags.SourceEditAddon",
     "weblate.addons.flags.TargetEditAddon",
     "weblate.addons.flags.SameEditAddon",
     "weblate.addons.flags.BulkEditAddon",
     "weblate.addons.generate.GenerateFileAddon",
+    "weblate.addons.generate.PseudolocaleAddon",
     "weblate.addons.json.JSONCustomizeAddon",
     "weblate.addons.properties.PropertiesSortAddon",
     "weblate.addons.git.GitSquashAddon",
@@ -986,7 +991,6 @@ WEBLATE_ADDONS = [
     "weblate.addons.resx.ResxUpdateAddon",
     "weblate.addons.yaml.YAMLCustomizeAddon",
     "weblate.addons.cdn.CDNJSAddon",
-    "weblate.addons.autotranslate.AutoTranslateAddon",
 ]
 modify_env_list(WEBLATE_ADDONS, "ADDONS")
 
@@ -1179,6 +1183,8 @@ DEFAULT_COMMITER_EMAIL = os.environ.get(
     "WEBLATE_DEFAULT_COMMITER_EMAIL", "noreply@weblate.org"
 )
 DEFAULT_COMMITER_NAME = os.environ.get("WEBLATE_DEFAULT_COMMITER_NAME", "Weblate")
+
+DEFAULT_AUTO_WATCH = get_env_bool("WEBLATE_DEFAULT_AUTO_WATCH", True)
 
 # PGP commits signing
 WEBLATE_GPG_IDENTITY = os.environ.get("WEBLATE_GPG_IDENTITY", None)

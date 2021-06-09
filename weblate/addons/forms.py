@@ -109,15 +109,15 @@ class GettextCustomizeForm(BaseAddonForm):
     width = forms.ChoiceField(
         label=_("Long lines wrapping"),
         choices=[
-            (77, _("Wrap lines at 77 chars and at newlines")),
+            (77, _("Wrap lines at 77 characters and at newlines")),
             (65535, _("Only wrap lines at newlines")),
             (-1, _("No line wrapping")),
         ],
         required=True,
         initial=77,
         help_text=_(
-            "By default gettext wraps lines at 77 chars and newlines. "
-            "With --no-wrap parameter, it wraps only at newlines."
+            "By default gettext wraps lines at 77 characters and at newlines. "
+            "With the --no-wrap parameter, wrapping is only done at newlines."
         ),
     )
 
@@ -158,7 +158,7 @@ class GitSquashForm(BaseAddonForm):
         help_text=_(
             "Trailer lines are lines that look similar to RFC 822 e-mail "
             "headers, at the end of the otherwise free-form part of a commit "
-            "message, such as 'Co-authored-by: ...'."
+            "message, such as 'Co-authored-by: …'."
         ),
     )
     commit_message = forms.CharField(
@@ -446,4 +446,34 @@ class CDNJSForm(BaseAddonForm):
                     template="addons/cdnjs.html",
                     context={"url": self._addon.cdn_js_url, "user": self.user},
                 ),
+            )
+
+
+class PseudolocaleAddonForm(BaseAddonForm):
+    source = forms.ChoiceField(label=_("Source strings"), required=True)
+    target = forms.ChoiceField(label=_("Target translation"), required=True)
+    prefix = forms.CharField(
+        label=_("String prefix"),
+        required=False,
+        initial="",
+    )
+    suffix = forms.CharField(
+        label=_("String suffix"),
+        required=False,
+        initial="",
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        choices = [
+            (translation.pk, str(translation.language))
+            for translation in self._addon.instance.component.translation_set.all()
+        ]
+        self.fields["source"].choices = choices
+        self.fields["target"].choices = choices
+
+    def clean(self):
+        if self.cleaned_data["source"] == self.cleaned_data["target"]:
+            raise forms.ValidationError(
+                _("The source and target have to be different languages.")
             )

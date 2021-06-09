@@ -382,7 +382,13 @@
 
   FullEditor.prototype.initGlossary = function () {
     /* Copy from glossary */
-    this.$editor.on("click", ".glossary-embed", (e) => {
+    this.$editor.on("click", ".glossary-embed.clickable-row", (e) => {
+      /* Avoid copy when clicked on a link */
+      if ($(e.target).parents("a").length > 0) {
+        return;
+      }
+      console.log(e.target);
+      console.log(e.currentTarget);
       var text = $(e.currentTarget).find(".target").text();
 
       this.insertIntoTranslation(text);
@@ -523,7 +529,7 @@
       var $translations = $("#machinery-translations");
       translations.forEach((translation) => {
         var service = this.renderService(translation);
-        var insertBefore;
+        var insertBefore = null;
         var done = false;
 
         /* This is the merging and insert sort logic */
@@ -540,7 +546,7 @@
             current.append(service.html());
             done = true;
             return false;
-          } else if (base.quality <= translation.quality) {
+          } else if (base.quality <= translation.quality && !insertBefore) {
             // Insert match before lower quality one
             insertBefore = $this;
           }
