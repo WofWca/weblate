@@ -1,3 +1,20 @@
+Weblate 4.5.2
+-------------
+
+Released on March 26th 2021.
+
+* Configurable schedule for automatic translation.
+* Added Lua format check.
+* Ignore format strings in the :ref:`check-duplicate` check.
+* Allow uploading screenshot from a translate page.
+* Added forced file synchronization to the repository maintenance.
+* Fixed automatic suggestions for languages with a longer code.
+* Improved performance when adding new strings.
+* Several bug fixes in quality checks.
+* Several performance improvements.
+* Added integration with :ref:`discover-weblate`.
+* Fixed checks behavior with read-only strings.
+
 Weblate 4.5.1
 -------------
 

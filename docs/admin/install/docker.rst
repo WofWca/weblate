@@ -232,7 +232,7 @@ Generic settings
 
     .. seealso::
 
-            :ref:`production-debug`.
+            :ref:`production-debug`
 
 .. envvar:: WEBLATE_LOGLEVEL
 
@@ -541,6 +541,10 @@ Generic settings
 
     Configures :setting:`DEFAULT_COMMITER_NAME`.
 
+.. envvar::  WEBLATE_DEFAULT_SHARED_TM
+
+   Configures :setting:`DEFAULT_SHARED_TM`.
+
 .. envvar:: WEBLATE_AKISMET_API_KEY
 
     Configures the Akismet API key, see :setting:`AKISMET_API_KEY`.
@@ -582,6 +586,14 @@ Generic settings
 .. envvar:: WEBLATE_LICENSE_FILTER
 
     Configures :setting:`LICENSE_FILTER`.
+
+.. envvar:: WEBLATE_LICENSE_REQUIRED
+
+   Configures :setting:`LICENSE_REQUIRED`
+
+.. envvar:: WEBLATE_WEBSITE_REQUIRED
+
+   Configures :setting:`WEBSITE_REQUIRED`
 
 .. envvar:: WEBLATE_HIDE_VERSION
 
@@ -1059,6 +1071,21 @@ Example SSL configuration:
 
         :ref:`production-email`,
         :setting:`django:EMAIL_BACKEND`
+
+Site integration
+~~~~~~~~~~~~~~~~
+
+.. envvar:: WEBLATE_GET_HELP_URL
+
+   Configures :setting:`GET_HELP_URL`.
+
+.. envvar:: WEBLATE_STATUS_URL
+
+   Configures :setting:`STATUS_URL`.
+
+.. envvar:: WEBLATE_LEGAL_URL
+
+   Configures :setting:`LEGAL_URL`.
 
 Error reporting
 ~~~~~~~~~~~~~~~

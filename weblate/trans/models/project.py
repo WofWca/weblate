@@ -91,6 +91,7 @@ class Project(FastDeleteModelMixin, models.Model, URLMixin, PathMixin, CacheKeyM
     )
     web = models.URLField(
         verbose_name=gettext_lazy("Project website"),
+        blank=not settings.WEBSITE_REQUIRED,
         help_text=gettext_lazy("Main website of translated project."),
     )
     instructions = models.TextField(
@@ -346,6 +347,10 @@ class Project(FastDeleteModelMixin, models.Model, URLMixin, PathMixin, CacheKeyM
         """Push all Git repos."""
         return self.on_repo_components(True, "do_cleanup", request)
 
+    def do_file_sync(self, request=None):
+        """Push all Git repos."""
+        return self.on_repo_components(True, "do_file_sync", request)
+
     def can_push(self):
         """Check whether any suprojects can push."""
         return self.on_repo_components(False, "can_push")
@@ -446,6 +451,7 @@ class Project(FastDeleteModelMixin, models.Model, URLMixin, PathMixin, CacheKeyM
             source_language=source_language,
             name=name,
             slug=slug,
+            manage_units=True,
             **kwargs,
         )
 

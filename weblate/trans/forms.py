@@ -45,9 +45,11 @@ from django.utils.translation import gettext_lazy as _
 from translation_finder import DiscoveryResult, discover
 
 from weblate.auth.models import User
+from weblate.checks.flags import Flags
 from weblate.checks.models import CHECKS
 from weblate.checks.utils import highlight_string
 from weblate.formats.models import EXPORTERS, FILE_FORMATS
+from weblate.glossary.forms import GlossaryAddMixin
 from weblate.lang.data import BASIC_LANGUAGES
 from weblate.lang.models import Language
 from weblate.machinery import MACHINE_TRANSLATION_SERVICES
@@ -55,11 +57,7 @@ from weblate.trans.defines import COMPONENT_NAME_LENGTH, REPO_LENGTH
 from weblate.trans.filter import FILTERS, get_filter_choice
 from weblate.trans.models import Announcement, Change, Component, Label, Project, Unit
 from weblate.trans.specialchars import RTL_CHARS_DATA, get_special_chars
-from weblate.trans.util import (
-    check_upload_method_permissions,
-    is_repo_link,
-    join_plural,
-)
+from weblate.trans.util import check_upload_method_permissions, is_repo_link
 from weblate.trans.validators import validate_check_flags
 from weblate.utils.antispam import is_spam
 from weblate.utils.errors import report_error
@@ -469,6 +467,15 @@ class TranslationForm(UnitForm):
         required=False,
         widget=forms.RadioSelect,
     )
+    explanation = forms.CharField(
+        widget=MarkdownTextarea,
+        label=_("Explanation"),
+        help_text=_(
+            "Additional explanation to clarify meaning or usage of the string."
+        ),
+        max_length=1000,
+        required=False,
+    )
 
     def __init__(self, user, unit: Unit, *args, **kwargs):
         if unit is not None:
@@ -479,6 +486,7 @@ class TranslationForm(UnitForm):
                 "target": unit,
                 "fuzzy": unit.fuzzy,
                 "review": unit.state,
+                "explanation": unit.explanation,
             }
             kwargs["auto_id"] = f"id_{unit.checksum}_%s"
         tabindex = kwargs.pop("tabindex", 100)
@@ -500,11 +508,14 @@ class TranslationForm(UnitForm):
             Field("contentsum"),
             Field("translationsum"),
             InlineRadios("review"),
+            Field("explanation"),
         )
         if unit and user.has_perm("unit.review", unit.translation):
             self.fields["fuzzy"].widget = forms.HiddenInput()
         else:
             self.fields["review"].widget = forms.HiddenInput()
+        if not unit.translation.component.is_glossary:
+            self.fields["explanation"].widget = forms.HiddenInput()
 
     def clean(self):
         super().clean()
@@ -1724,7 +1735,7 @@ class ComponentDiscoverForm(ComponentInitCreateForm):
             self.fields["discovery"].choices.append((i, self.render_choice(value)))
 
     def perform_discovery(self, request, kwargs):
-        if "data" in kwargs:
+        if "data" in kwargs and "create_discovery" in request.session:
             discovered = []
             for i, data in enumerate(request.session["create_discovery"]):
                 item = DiscoveryResult(data)
@@ -1982,9 +1993,40 @@ class MatrixLanguageForm(forms.Form):
 class NewUnitBaseForm(forms.Form):
     variant = forms.CharField(required=False, widget=forms.HiddenInput)
 
+    def __init__(self, translation, user, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.translation = translation
+        self.user = user
+
+    def clean(self):
+        try:
+            data = self.as_kwargs()
+        except KeyError:
+            # Probably some fields validation has failed
+            return
+        self.translation.validate_new_unit_data(**data)
+
+    def get_glossary_flags(self):
+        return ""
+
+    def as_kwargs(self):
+        flags = Flags()
+        flags.merge(self.get_glossary_flags())
+        variant = self.cleaned_data.get("variant")
+        if variant:
+            flags.set_value("variant", variant)
+        return {
+            "context": self.cleaned_data.get("context", ""),
+            "source": self.cleaned_data["source"],
+            "target": self.cleaned_data.get("target"),
+            "extra_flags": flags.format(),
+            "explanation": self.cleaned_data.get("explanation", ""),
+            "auto_context": self.cleaned_data.get("auto_context", False),
+        }
+
 
 class NewMonolingualUnitForm(NewUnitBaseForm):
-    key = forms.CharField(
+    context = forms.CharField(
         label=_("Translation key"),
         help_text=_(
             "Key used to identify string in translation file. "
@@ -1992,7 +2034,7 @@ class NewMonolingualUnitForm(NewUnitBaseForm):
         ),
         required=True,
     )
-    value = PluralField(
+    source = PluralField(
         label=_("Source language text"),
         help_text=_(
             "You can edit this later, as with any other string in "
@@ -2002,24 +2044,23 @@ class NewMonolingualUnitForm(NewUnitBaseForm):
     )
 
     def __init__(self, translation, user, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.fields["key"].widget.attrs["tabindex"] = 99
-        self.fields["value"].widget.attrs["tabindex"] = 100
-        self.fields["value"].widget.profile = user.profile
-        self.fields["value"].initial = Unit(translation=translation, id_hash=0)
-
-    def as_tuple(self):
-        return (self.cleaned_data["key"], self.cleaned_data["value"], None)
-
-    def unit_exists(self, obj):
-        return obj.unit_set.filter(context=self.cleaned_data["key"]).exists()
+        super().__init__(translation, user, *args, **kwargs)
+        self.fields["context"].widget.attrs["tabindex"] = 99
+        self.fields["source"].widget.attrs["tabindex"] = 100
+        self.fields["source"].widget.profile = user.profile
+        self.fields["source"].initial = Unit(translation=translation, id_hash=0)
 
 
 class NewBilingualSourceUnitForm(NewUnitBaseForm):
     context = forms.CharField(
-        label=_("Translation key"),
+        label=_("Context"),
         help_text=_("Optional context to clarify the source strings."),
         required=False,
+    )
+    auto_context = forms.BooleanField(
+        required=False,
+        initial=True,
+        label=_("Automatically adjust context when same string already exists."),
     )
     source = PluralField(
         label=_("Source string"),
@@ -2027,7 +2068,7 @@ class NewBilingualSourceUnitForm(NewUnitBaseForm):
     )
 
     def __init__(self, translation, user, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        super().__init__(translation, user, *args, **kwargs)
         self.fields["context"].widget.attrs["tabindex"] = 99
         self.fields["source"].widget.attrs["tabindex"] = 100
         self.fields["source"].widget.profile = user.profile
@@ -2035,25 +2076,12 @@ class NewBilingualSourceUnitForm(NewUnitBaseForm):
             translation=translation.component.source_translation, id_hash=0
         )
 
-    def as_tuple(self):
-        return (
-            self.cleaned_data.get("context", ""),
-            self.cleaned_data["source"],
-            self.cleaned_data.get("target", ""),
-        )
-
-    def unit_exists(self, obj):
-        return obj.unit_set.filter(
-            context=self.cleaned_data.get("context", ""),
-            source=join_plural(self.cleaned_data["source"]),
-        ).exists()
-
 
 class NewBilingualUnitForm(NewBilingualSourceUnitForm):
     target = PluralField(
         label=_("Translated string"),
         help_text=_(
-            "You can edit this later, as with any other string in " "the translation."
+            "You can edit this later, as with any other string in the translation."
         ),
         required=True,
     )
@@ -2065,9 +2093,29 @@ class NewBilingualUnitForm(NewBilingualSourceUnitForm):
         self.fields["target"].initial = Unit(translation=translation, id_hash=0)
 
 
+class NewBilingualGlossarySourceUnitForm(GlossaryAddMixin, NewBilingualSourceUnitForm):
+    def __init__(self, translation, user, *args, **kwargs):
+        if kwargs["initial"] is None:
+            kwargs["initial"] = {}
+        kwargs["initial"]["terminology"] = True
+        super().__init__(translation, user, *args, **kwargs)
+
+
+class NewBilingualGlossaryUnitForm(GlossaryAddMixin, NewBilingualUnitForm):
+    pass
+
+
 def get_new_unit_form(translation, user, data=None, initial=None):
     if translation.component.has_template():
         return NewMonolingualUnitForm(translation, user, data=data, initial=initial)
+    if translation.component.is_glossary:
+        if translation.is_source:
+            return NewBilingualGlossarySourceUnitForm(
+                translation, user, data=data, initial=initial
+            )
+        return NewBilingualGlossaryUnitForm(
+            translation, user, data=data, initial=initial
+        )
     if translation.is_source:
         return NewBilingualSourceUnitForm(translation, user, data=data, initial=initial)
     return NewBilingualUnitForm(translation, user, data=data, initial=initial)

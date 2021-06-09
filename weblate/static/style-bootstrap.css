@@ -206,7 +206,8 @@ ul.legend li {
   display: inline-block;
 }
 
-textarea.translation-editor {
+textarea.translation-editor,
+textarea[name="explanation"] {
   height: 3em;
 }
 
@@ -214,9 +215,9 @@ textarea#id_comment {
   height: 5em;
 }
 
-#id_extra_flags,
-#id_explanation,
-#id_check_flags {
+textarea#id_extra_flags,
+textarea#id_explanation,
+textarea#id_check_flags {
   height: 4em;
 }
 
@@ -411,6 +412,9 @@ th:hover .sort-icon.sort-up {
 .btn-inline {
   font-weight: 600;
   padding: 0 20px;
+}
+.formats .btn-inline {
+  padding: 0;
 }
 
 .btn-desc p {
@@ -1305,6 +1309,10 @@ a.format-item:hover {
   display: inline;
 }
 
+.state-icon.state-forbidden .state-forbidden {
+  display: inline;
+}
+
 .icon-spin {
   -webkit-animation: icon-spin 1s infinite linear;
   animation: icon-spin 1s infinite linear;
@@ -1409,6 +1417,69 @@ a.format-item:hover {
 .label-silver {
   background-color: #ddd;
   color: #000;
+}
+.btn-navy path {
+  fill: #001f3f;
+}
+
+.btn-blue path {
+  fill: #0074d9;
+}
+
+.btn-aqua path {
+  fill: #7fdbff;
+}
+
+.btn-teal path {
+  fill: #39cccc;
+}
+
+.btn-olive path {
+  fill: #3d9970;
+}
+
+.btn-green path {
+  fill: #2ecc40;
+}
+
+.btn-lime path {
+  fill: #01ff70;
+}
+
+.btn-yellow path {
+  fill: #ffdc00;
+}
+
+.btn-orange path {
+  fill: #ff851b;
+}
+
+.btn-red path {
+  fill: #ff4136;
+}
+
+.btn-maroon path {
+  fill: #85144b;
+}
+
+.btn-fuchsia path {
+  fill: #f012be;
+}
+
+.btn-purple path {
+  fill: #b10dc9;
+}
+
+.btn-black path {
+  fill: #111;
+}
+
+.btn-gray path {
+  fill: #aaa;
+}
+
+.btn-silver path {
+  fill: #bbb;
 }
 
 input.color_edit {

@@ -38,6 +38,7 @@ class Check:
     propagates = False
     param_type = None
     always_display = False
+    batch_project_wide = False
 
     def get_identifier(self):
         return self.check_id
@@ -73,7 +74,7 @@ class Check:
     def check_target(self, sources, targets, unit):
         """Check target strings."""
         # No checking of not translated units (but we do check needs editing ones)
-        if self.ignore_untranslated and not unit.state:
+        if self.ignore_untranslated and (not unit.state or unit.readonly):
             return False
         if self.should_skip(unit):
             return False
@@ -183,10 +184,11 @@ class Check:
 
     def perform_batch(self, component):
         from weblate.checks.models import Check
+        from weblate.trans.models import Component
 
         handled = set()
-        changed = False
         create = []
+        components = {}
         for unit in self.check_component(component):
             # Handle ignore flags
             if self.should_skip(unit):
@@ -198,23 +200,36 @@ class Check:
                 continue
 
             create.append(Check(unit=unit, dismissed=False, check=self.check_id))
-            changed = True
+            components[unit.translation.component.id] = unit.translation.component
 
         Check.objects.bulk_create(create, batch_size=500, ignore_conflicts=True)
 
         # Delete stale checks
-        changed |= (
-            Check.objects.filter(
+        stale_checks = Check.objects.exclude(unit_id__in=handled)
+        if self.batch_project_wide and component.allow_translation_propagation:
+            stale_checks = stale_checks.filter(
+                unit__translation__component__project=component.project,
+                unit__translation__component__allow_translation_propagation=True,
+                check=self.check_id,
+            )
+            for current in Component.objects.filter(
+                pk__in=stale_checks.values_list(
+                    "unit__translation__component", flat=True
+                )
+            ):
+                components[current.pk] = current
+            stale_checks.delete()
+        else:
+            stale_checks = stale_checks.filter(
                 unit__translation__component=component,
                 check=self.check_id,
             )
-            .exclude(unit_id__in=handled)
-            .delete()[0]
-        )
+            if stale_checks.delete()[0]:
+                components[component.id] = component
 
         # Invalidate stats in case there were changes
-        if changed:
-            component.invalidate_cache()
+        for current in components.values():
+            current.invalidate_cache()
 
 
 class TargetCheck(Check):

@@ -409,6 +409,7 @@
       var $form = $(e.currentTarget);
 
       increaseLoading("glossary-add");
+      $glossaryDialog.modal("hide");
       $.ajax({
         type: "POST",
         url: $form.attr("action"),
@@ -419,15 +420,14 @@
           if (data.responseCode === 200) {
             $("#glossary-terms").html(data.results);
             $form.find("[name=terms]").attr("value", data.terms);
+            $form.trigger("reset");
+          } else {
+            addAlert(data.responseDetails);
           }
-          $form.trigger("reset");
         },
         error: function (xhr, textStatus, errorThrown) {
           addAlert(errorThrown);
           decreaseLoading("glossary-add");
-        },
-        complete: function () {
-          $glossaryDialog.modal("hide");
         },
       });
       return false;

@@ -6,9 +6,9 @@
 # Martin Srebotnjak <miles@filmsi.net>, 2020.
 msgid ""
 msgstr ""
-"Project-Id-Version: Weblate 4.5.1\n"
+"Project-Id-Version: Weblate 4.5.2\n"
 "Report-Msgid-Bugs-To: https://github.com/WeblateOrg/weblate/issues\n"
-"POT-Creation-Date: 2021-03-05 14:18+0000\n"
+"POT-Creation-Date: 2021-03-25 19:14+0000\n"
 "PO-Revision-Date: 2020-11-09 02:26+0000\n"
 "Last-Translator: Martin Srebotnjak <miles@filmsi.net>\n"
 "Language-Team: Slovenian <https://hosted.weblate.org/projects/weblate/"
@@ -21,12 +21,12 @@ msgstr ""
 "%100==4 ? 2 : 3;\n"
 "X-Generator: Weblate 4.3.2\n"
 
-#: weblate/static/editor/base.js:147
+#: weblate/static/editor/base.js:148
 #, javascript-format
 msgid "Cmd+%s"
 msgstr "Cmd+%s"
 
-#: weblate/static/editor/base.js:149
+#: weblate/static/editor/base.js:150
 #, javascript-format
 msgid "Ctrl+%s"
 msgstr "Krmilka+%s"

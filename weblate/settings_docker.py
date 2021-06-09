@@ -534,7 +534,7 @@ if "ROLLBAR_KEY" in os.environ:
     ROLLBAR = {
         "access_token": os.environ["ROLLBAR_KEY"],
         "environment": os.environ.get("ROLLBAR_ENVIRONMENT", "production"),
-        "branch": "master",
+        "branch": "main",
         "root": "/usr/local/lib/python3.7/dist-packages/weblate/",
         "exception_level_filters": [
             (PermissionDenied, "ignored"),
@@ -878,6 +878,9 @@ if "WEBLATE_LICENSE_FILTER" in os.environ:
     LICENSE_FILTER = set(get_env_list("WEBLATE_LICENSE_FILTER"))
     LICENSE_FILTER.discard("")
 
+LICENSE_REQUIRED = get_env_bool("WEBLATE_LICENSE_REQUIRED", False)
+WEBSITE_REQUIRED = get_env_bool("WEBLATE_WEBSITE_REQUIRED", True)
+
 # Language filter
 if "WEBLATE_BASIC_LANGUAGES" in os.environ:
     BASIC_LANGUAGES = set(get_env_list("WEBLATE_BASIC_LANGUAGES"))
@@ -917,6 +920,7 @@ CHECK_LIST = [
     "weblate.checks.format.PerlFormatCheck",
     "weblate.checks.format.JavaScriptFormatCheck",
     "weblate.checks.format.LuaFormatCheck",
+    "weblate.checks.format.SchemeFormatCheck",
     "weblate.checks.format.CSharpFormatCheck",
     "weblate.checks.format.JavaFormatCheck",
     "weblate.checks.format.JavaMessageFormatCheck",
@@ -1187,12 +1191,19 @@ DEFAULT_COMMITER_NAME = os.environ.get("WEBLATE_DEFAULT_COMMITER_NAME", "Weblate
 
 DEFAULT_AUTO_WATCH = get_env_bool("WEBLATE_DEFAULT_AUTO_WATCH", True)
 
+DEFAULT_SHARED_TM = get_env_bool("WEBLATE_DEFAULT_SHARED_TM", True)
+
 # PGP commits signing
 WEBLATE_GPG_IDENTITY = os.environ.get("WEBLATE_GPG_IDENTITY", None)
 
 # Localize CDN addon
 LOCALIZE_CDN_URL = os.environ.get("WEBLATE_LOCALIZE_CDN_URL", None)
 LOCALIZE_CDN_PATH = os.environ.get("WEBLATE_LOCALIZE_CDN_PATH", None)
+
+# Integration links
+GET_HELP_URL = os.environ.get("WEBLATE_GET_HELP_URL", None)
+STATUS_URL = os.environ.get("WEBLATE_STATUS_URL", None)
+LEGAL_URL = os.environ.get("WEBLATE_LEGAL_URL", None)
 
 # Third party services integration
 MATOMO_SITE_ID = os.environ.get("WEBLATE_MATOMO_SITE_ID", None)

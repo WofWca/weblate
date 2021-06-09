@@ -111,8 +111,8 @@ class VCSGitTest(TestCase, RepoTestMixin, TempDirMixin):
     _class = GitRepository
     _vcs = "git"
     _sets_push = True
-    _remote_branches = ["master", "translations"]
-    _remote_branch = "master"
+    _remote_branches = ["main", "translations"]
+    _remote_branch = "main"
 
     def setUp(self):
         super().setUp()
@@ -291,7 +291,7 @@ class VCSGitTest(TestCase, RepoTestMixin, TempDirMixin):
     def test_status(self):
         status = self.repo.status()
         # Older git print up-to-date, newer up to date
-        self.assertIn("date with 'origin/master'.", status)
+        self.assertIn("date with 'origin/main'.", status)
 
     def test_needs_commit(self):
         self.assertFalse(self.repo.needs_commit())
@@ -455,7 +455,7 @@ class VCSGitTest(TestCase, RepoTestMixin, TempDirMixin):
     def test_configure_branch(self):
         # Existing branch
         with self.repo.lock:
-            self.repo.configure_branch(self._class.default_branch)
+            self.repo.configure_branch(self.repo.get_remote_branch(self.tempdir))
 
             with self.assertRaises(RepositoryException):
                 self.repo.configure_branch("branch")
@@ -681,7 +681,7 @@ class VCSGitLabTest(VCSGitUpstreamTest):
             status=pr_status,
         )
 
-    def mock_disable_fork_features(self):
+    def mock_configure_fork_features(self):
         responses.add(
             responses.PUT,
             "https://gitlab.com/api/v4/projects/20227391",
@@ -706,7 +706,7 @@ class VCSGitLabTest(VCSGitUpstreamTest):
         """
         self.mock_fork_responses(get_forks, repo_state)
         self.mock_pr_responses(pr_response, pr_status)
-        self.mock_disable_fork_features()
+        self.mock_configure_fork_features()
         self.mock_get_project_id()
 
     def test_api_url(self):
@@ -1025,6 +1025,7 @@ class VCSSubversionTest(VCSGitTest):
     _class = SubversionRepository
     _vcs = "subversion"
     _remote_branches = []
+    _remote_branch = "master"
 
     def test_clone(self):
         self.assertTrue(os.path.exists(os.path.join(self.tempdir, ".git", "svn")))
@@ -1049,7 +1050,7 @@ class VCSSubversionTest(VCSGitTest):
             self.repo.configure_remote(
                 self.format_local_path(self.subversion_repo_path),
                 self.format_local_path(self.subversion_repo_path),
-                "master",
+                "main",
             )
             with self.assertRaises(RepositoryException):
                 self.repo.configure_remote("pullurl", "", "branch")

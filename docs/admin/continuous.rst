@@ -52,9 +52,18 @@ Updating repositories
 You should set up some way of updating backend repositories from their
 source.
 
-* Use :ref:`hooks` to integrate with most of common code hosting services
+* Use :ref:`hooks` to integrate with most of common code hosting services:
+
+  * :ref:`github-setup`
+  * :ref:`gitlab-setup`
+  * :ref:`bitbucket-setup`
+  * :ref:`pagure-setup`
+  * :ref:`azure-setup`
+
 * Manually trigger update either in the repository management or using :ref:`api` or :ref:`wlc`
+
 * Enable :setting:`AUTO_UPDATE` to automatically update all components on your Weblate instance
+
 * Execute :djadmin:`updategit` (with selection of project or `--all` to update all)
 
 Whenever Weblate updates the repository, the post-update addons will be
@@ -119,6 +128,10 @@ all separately:
     The example uses :ref:`wlc`, which needs configuration (API keys) to be
     able to control Weblate remotely. You can also achieve this using any HTTP
     client instead of wlc, e.g. curl, see :ref:`api`.
+
+.. seealso::
+
+   :ref:`wlc`
 
 .. _github-setup:
 

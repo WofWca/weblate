@@ -417,6 +417,10 @@ Following configuration is recommended for Weblate:
 * Set the isolation level to ``READ COMMITTED``.
 * The SQL mode should be set to ``STRICT_TRANS_TABLES``.
 
+MySQL 8.x, MariaDB 10.5.x or newer have reasonable default configuration so
+that no server tweaking should be necessary and all what is needed can be
+configured on the client side.
+
 Below is an example :file:`/etc/my.cnf.d/server.cnf` for a server with 8 GB of
 RAM. These settings should be sufficient for most installs. MySQL and MariaDB
 have tunables that will increase the performance of your server that are
@@ -826,7 +830,7 @@ After enabling it, you should set :setting:`ENABLE_HTTPS` in the settings:
 Set properly SECURE_HSTS_SECONDS
 ++++++++++++++++++++++++++++++++
 
-If your site is served over SSL, you have to consider setting a value for :setting:`SECURE_HSTS_SECONDS`
+If your site is served over SSL, you have to consider setting a value for :setting:`django:SECURE_HSTS_SECONDS`
 in the :file:`settings.py` to enable HTTP Strict Transport Security.
 By default it's set to 0 as shown below.
 
@@ -1532,7 +1536,7 @@ In short, you need to adjust :file:`settings.py`:
         "access_token": "POST_SERVER_ITEM_ACCESS_TOKEN",
         "client_token": "POST_CLIENT_ITEM_ACCESS_TOKEN",
         "environment": "development" if DEBUG else "production",
-        "branch": "master",
+        "branch": "main",
         "root": "/absolute/path/to/code/root",
     }
 

@@ -4,7 +4,7 @@
    :height: 80px
 
 **Weblate is a copylefted libre software web-based continuous localization system,
-used by over 1150 libre projects and companies in more than 115 countries.**
+used by over 2500 libre projects and companies in more than 165 countries.**
 
 Install it, or use the Hosted Weblate service at `weblate.org`_.
 
@@ -28,7 +28,7 @@ Install it, or use the Hosted Weblate service at `weblate.org`_.
 
 .. image:: https://img.shields.io/github/license/WeblateOrg/weblate.svg
     :alt: License
-    :target: https://github.com/WeblateOrg/weblate/blob/master/COPYING
+    :target: https://github.com/WeblateOrg/weblate/blob/main/COPYING
 
 Support
 -------

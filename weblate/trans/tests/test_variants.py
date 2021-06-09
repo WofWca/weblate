@@ -19,6 +19,8 @@
 
 """Test for variants."""
 
+from django.urls import reverse
+
 from weblate.trans.models import Variant
 from weblate.trans.tests.test_views import ViewTestCase
 
@@ -30,14 +32,9 @@ class VariantTest(ViewTestCase):
     def add_variants(self, suffix: str = ""):
         request = self.get_request()
         translation = self.component.source_translation
-        translation.add_units(
-            request,
-            [
-                (f"bar{suffix}", "Default string", None),
-                ("barMin", "Min string", None),
-                ("barShort", "Short string", None),
-            ],
-        )
+        translation.add_unit(request, f"bar{suffix}", "Default string", None)
+        translation.add_unit(request, "barMin", "Min string", None)
+        translation.add_unit(request, "barShort", "Short string", None)
 
     def test_edit_component(self, suffix: str = ""):
         self.add_variants()
@@ -78,7 +75,8 @@ class VariantTest(ViewTestCase):
         )
         request = self.get_request()
         translation = self.component.source_translation
-        translation.add_units(request, [(key, "Test string", None) for key in units])
+        for key in units:
+            translation.add_unit(request, key, "Test string", None)
         self.assertEqual(Variant.objects.count(), 1)
         self.assertEqual(Variant.objects.get().unit_set.count(), 10)
 
@@ -112,3 +110,29 @@ class VariantTest(ViewTestCase):
 
     def test_variants_flag_translation(self):
         self.test_variants_flag("cs")
+
+    def test_add_variant_unit(self):
+        self.make_manager()
+        base = "Thank you for using Weblate."
+        response = self.client.post(
+            reverse(
+                "new-unit",
+                kwargs={
+                    "project": self.component.project.slug,
+                    "component": self.component.slug,
+                    "lang": "en",
+                },
+            ),
+            {
+                "context": "variantial",
+                "source_0": "Source",
+                "variant": base,
+            },
+            follow=True,
+        )
+        self.assertContains(response, "New string has been added")
+
+        translation = self.component.translation_set.get(language_code="cs")
+        unit = translation.unit_set.get(context="variantial")
+        self.assertEqual(unit.source_unit.extra_flags, f'variant:"{base}"')
+        self.assertTrue(unit.defined_variants.exists())

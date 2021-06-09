@@ -65,6 +65,10 @@ class GitNoChangeProjectTest(ViewTestCase):
         response = self.client.post(self.get_test_url("cleanup"))
         self.assertRedirects(response, self.get_expected_redirect())
 
+    def test_file_sync(self):
+        response = self.client.post(self.get_test_url("file_sync"))
+        self.assertRedirects(response, self.get_expected_redirect())
+
     def test_status(self):
         response = self.client.get(self.get_test_url("git_status"))
         self.assertContains(response, "Repository status")
@@ -130,7 +134,7 @@ class GitBrokenProjectTest(GitNoChangeProjectTest):
         super().setUp()
         repo = self.component.repository
         with repo.lock:
-            repo.execute(["branch", "--delete", "--remotes", "origin/master"])
+            repo.execute(["branch", "--delete", "--remotes", "origin/main"])
 
 
 class GitBrokenComponentTest(GitBrokenProjectTest):

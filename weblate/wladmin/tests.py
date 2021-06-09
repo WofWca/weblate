@@ -122,7 +122,7 @@ class AdminTest(ViewTestCase):
 
     def test_report(self):
         response = self.client.get(reverse("manage-repos"))
-        self.assertContains(response, "On branch master")
+        self.assertContains(response, "On branch main")
 
     def test_create_project(self):
         response = self.client.get(reverse("admin:trans_project_add"))
@@ -237,6 +237,12 @@ class AdminTest(ViewTestCase):
         self.assertEqual(status.name, "community")
         self.assertFalse(BackupService.objects.exists())
 
+        self.assertFalse(status.discoverable)
+
+        self.client.post(reverse("manage-discovery"))
+        status = SupportStatus.objects.get()
+        self.assertTrue(status.discoverable)
+
     @responses.activate
     def test_activation_hosted(self):
         responses.add(
@@ -258,6 +264,12 @@ class AdminTest(ViewTestCase):
         backup = BackupService.objects.get()
         self.assertEqual(backup.repository, "/tmp/xxx")
         self.assertFalse(backup.enabled)
+
+        self.assertFalse(status.discoverable)
+
+        self.client.post(reverse("manage-discovery"))
+        status = SupportStatus.objects.get()
+        self.assertTrue(status.discoverable)
 
     def test_group_management(self):
         # Add form

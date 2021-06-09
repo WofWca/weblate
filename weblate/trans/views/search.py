@@ -38,7 +38,6 @@ from weblate.trans.forms import (
 from weblate.trans.models import Change, Unit
 from weblate.trans.util import render
 from weblate.utils import messages
-from weblate.utils.db import get_nokey_args
 from weblate.utils.ratelimit import check_rate_limit
 from weblate.utils.views import (
     get_component,
@@ -121,7 +120,7 @@ def search_replace(request, project, component=None, lang=None):
         matching = confirm.cleaned_data["units"]
 
         with transaction.atomic():
-            for unit in matching.select_for_update(**get_nokey_args()):
+            for unit in matching.select_for_update():
                 if not request.user.has_perm("unit.edit", unit):
                     continue
                 unit.translate(
@@ -200,7 +199,9 @@ def search(request, project=None, component=None, lang=None):
         if lang:
             units = units.filter(translation__language=context["language"])
 
-        units = get_paginator(request, units.order_by_request(search_form.cleaned_data))
+        units = get_paginator(
+            request, units.order_by_request(search_form.cleaned_data, obj)
+        )
         # Rebuild context from scratch here to get new form
         context = {
             "search_form": search_form,

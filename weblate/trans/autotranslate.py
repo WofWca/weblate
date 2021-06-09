@@ -23,7 +23,6 @@ from django.db import transaction
 
 from weblate.machinery import MACHINE_TRANSLATION_SERVICES
 from weblate.trans.models import Change, Component, Suggestion, Unit
-from weblate.utils.db import get_nokey_args
 from weblate.utils.state import STATE_FUZZY, STATE_TRANSLATED
 
 
@@ -31,6 +30,7 @@ class AutoTranslate:
     def __init__(self, user, translation, filter_type, mode):
         self.user = user
         self.translation = translation
+        translation.component.batch_checks = True
         self.filter_type = filter_type
         self.mode = mode
         self.updated = 0
@@ -57,11 +57,16 @@ class AutoTranslate:
         if self.mode == "suggest" or len(target) > unit.get_max_length():
             Suggestion.objects.add(unit, target, None, False)
         else:
-            unit.translate(self.user, target, state, Change.ACTION_AUTO, False)
+            unit.is_batch_update = True
+            unit.translate(
+                self.user, target, state, Change.ACTION_AUTO, propagate=False
+            )
         self.updated += 1
 
     def post_process(self):
         if self.updated > 0:
+            self.translation.component.update_source_checks()
+            self.translation.component.run_batched_checks()
             self.translation.invalidate_cache()
             if self.user:
                 self.user.profile.increase_count("translated", self.updated)
@@ -106,7 +111,8 @@ class AutoTranslate:
         units = (
             self.get_units(False)
             .filter(source__in=translations.keys())
-            .select_for_update(**get_nokey_args())
+            .prefetch_bulk()
+            .select_for_update()
         )
         self.progress_steps = len(units)
 
@@ -130,7 +136,7 @@ class AutoTranslate:
         num_units = len(units)
 
         engines = sorted(
-            engines,
+            (engine for engine in engines if engine in MACHINE_TRANSLATION_SERVICES),
             key=lambda x: MACHINE_TRANSLATION_SERVICES[x].get_rank(),
             reverse=True,
         )
@@ -166,9 +172,9 @@ class AutoTranslate:
         with transaction.atomic():
             # Perform the translation
             for pos, unit in enumerate(
-                Unit.objects.filter(id__in=translations.keys())
-                .prefetch()
-                .select_for_update(**get_nokey_args())
+                self.translation.unit_set.filter(id__in=translations.keys())
+                .prefetch_bulk()
+                .select_for_update()
             ):
                 # Copy translation
                 self.update(unit, self.target_state, translations[unit.pk])

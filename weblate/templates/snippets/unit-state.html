@@ -42,5 +42,8 @@
 <span title="{% trans "Suggested" context "String state" %}" class="state-suggest" data-nested-href="{{ unit_url }}#suggestions">
     {% if not nested_links %}<a href="{{ unit_url }}#suggestions">{% endif %}{% icon "suggest.svg" %}{% if not nested_links %}</a>{% endif %}
 </span>
+<span title="{% trans "This translation is forbidden." %}" class="red forbidden-term state-forbidden" data-nested-href="{{ unit_url }}">
+    {% if not nested_links %}<a href="{{ unit_url }}">{% endif %}{% icon "cancel.svg" %}{% if not nested_links %}</a>{% endif %}
+</span>
 </span>
 {% endwith %}

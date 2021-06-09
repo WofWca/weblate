@@ -39,12 +39,12 @@ from django.utils.translation import gettext as _
 from django.utils.translation import gettext_noop
 from django.views.decorators.http import require_POST
 
-from weblate.checks.flags import Flags
 from weblate.checks.models import CHECKS, get_display_checks
 from weblate.glossary.forms import TermForm
 from weblate.glossary.models import get_glossary_terms
 from weblate.lang.models import Language
 from weblate.machinery import MACHINE_TRANSLATION_SERVICES
+from weblate.screenshots.forms import ScreenshotForm
 from weblate.trans.forms import (
     AntispamForm,
     AutoForm,
@@ -240,7 +240,7 @@ def search(base, project, unit_set, request, blank: bool = False):
 
     # Grab unit IDs
     unit_ids = list(
-        allunits.order_by_request(cleaned_data).values_list("id", flat=True)
+        allunits.order_by_request(cleaned_data, base).values_list("id", flat=True)
     )
 
     # Check empty search results
@@ -303,6 +303,9 @@ def perform_translation(unit, form, request):
     # Remember old checks
     oldchecks = unit.all_checks_names
 
+    # Update explanation for glossary
+    if unit.translation.component.is_glossary:
+        unit.explanation = form.cleaned_data["explanation"]
     # Save
     saved = unit.translate(
         user, form.cleaned_data["target"], form.cleaned_data["state"]
@@ -506,7 +509,7 @@ def handle_suggestions(request, unit, this_unit_url, next_unit_url):
     return HttpResponseRedirect(redirect_url)
 
 
-def translate(request, project, component, lang):
+def translate(request, project, component, lang):  # noqa: C901
     """Generic entry point for translating, suggesting and searching."""
     obj, project, unit_set = parse_params(request, project, component, lang)
 
@@ -604,6 +607,12 @@ def translate(request, project, component, lang):
     form = TranslationForm(request.user, unit)
     sort = get_sort_name(request, obj)
 
+    screenshot_form = None
+    if request.user.has_perm("screenshot.add", unit.translation):
+        screenshot_form = ScreenshotForm(
+            unit.translation.component, initial={"translation": unit.translation}
+        )
+
     return render(
         request,
         "translate.html",
@@ -650,6 +659,7 @@ def translate(request, project, component, lang):
             "new_unit_form": get_new_unit_form(
                 unit.translation, request.user, initial={"variant": unit.source}
             ),
+            "screenshot_form": screenshot_form,
         },
     )
 
@@ -918,27 +928,9 @@ def new_unit(request, project, component, lang):
     if not form.is_valid():
         show_form_errors(request, form)
     else:
-        if form.unit_exists(translation):
-            messages.error(request, _("This string seems to already exist."))
-        else:
-            # This is slow way of detecting unit, add_units should directly
-            # create the database units, return them and they should be saved to
-            # file as regular pending ones.
-            existing = list(translation.unit_set.values_list("pk", flat=True))
-            translation.add_units(request, [form.as_tuple()])
-            messages.success(request, _("New string has been added."))
-            new_units = translation.unit_set.exclude(pk__in=existing)
-            if form.cleaned_data["variant"]:
-                for new_unit in new_units:
-                    flags = Flags(new_unit.extra_flags)
-                    flags.set_value("variant", form.cleaned_data["variant"])
-                    new_unit.extra_flags = flags.format()
-                    new_unit.save(
-                        update_fields=["extra_flags"],
-                        same_content=True,
-                        run_checks=False,
-                    )
-                    return redirect(new_unit)
+        new_unit = translation.add_unit(request, **form.as_kwargs())
+        messages.success(request, _("New string has been added."))
+        return redirect(new_unit)
 
     return redirect(translation)
 
