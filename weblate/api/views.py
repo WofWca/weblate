@@ -719,6 +719,43 @@ class ProjectViewSet(
         return Response(get_project_stats(obj))
 
     @action(detail=True, methods=["get"])
+    def credits(self, request, **kwargs):
+        obj = self.get_object()
+        if not request.user.has_perm("reports.view", obj):
+            raise PermissionDenied()
+
+        result = []
+
+        for language in (
+            Language.objects.filter(translation__component__project=obj)
+            .distinct()
+            .iterator()
+        ):
+            authors = (
+                Change.objects.content()
+                .filter(language=language, translation__component__project=obj)
+                .authors_list()
+            )
+            if not authors:
+                continue
+            result.append(
+                {
+                    "language": str(language),
+                    "code": language.code,
+                    "authors": [
+                        {
+                            "email": email,
+                            "full_name": full_name,
+                            "change_count": change_count,
+                        }
+                        for email, full_name, change_count in authors
+                    ],
+                }
+            )
+
+        return Response(result)
+
+    @action(detail=True, methods=["get"])
     def changes(self, request, **kwargs):
         obj = self.get_object()
 
